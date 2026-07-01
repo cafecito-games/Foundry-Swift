@@ -61,4 +61,4 @@ jobs:
     - name: Build Target Branch
       run: swift build --target FoundrySwift --scratch-path .build/Old -Xswiftc -no-verify-emitted-module-interface
     - name: Diff generated
-      run: diff --recursive --color=auto --minimal .build/New/plugins/outputs/foundryswift/FoundrySwift/destination/CodeGeneratorPlugin/ .build/Old/plugins/outputs/foundryswift/FoundrySwift/destination/CodeGeneratorPlugin/ | sed -e 's/diff\(.*\)\/\(.*\).swift/\n\2.swift:/'
+      run: diff --recursive --color=auto --minimal .build/New/plugins/outputs/foundry-swift/FoundrySwift/destination/CodeGeneratorPlugin/ .build/Old/plugins/outputs/foundry-swift/FoundrySwift/destination/CodeGeneratorPlugin/ | sed -e 's/diff\(.*\)\/\(.*\).swift/\n\2.swift:/'
