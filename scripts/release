@@ -207,7 +207,14 @@ macro_zip_path="$output_dir/FoundrySwiftMacros.artifactbundle.zip"
 macro_asset_url="https://github.com/$source_repo/releases/download/$tag/FoundrySwiftMacros.artifactbundle.zip"
 macro_checksum=$(swift package compute-checksum "$macro_zip_path")
 
-gh release create "$tag" "$zip_path" "$macro_zip_path" "$addon_zip_path" -R "$source_repo" -F "$release_notes" --target "$commit"
+# A SemVer pre-release tag carries a hyphen (for example 0.1.0-alpha.1). Flag
+# those GitHub releases as pre-releases so they are not surfaced as "Latest".
+prerelease_flag=()
+if [[ "$tag" == *-* ]]; then
+    prerelease_flag=(--prerelease)
+fi
+
+gh release create "$tag" "$zip_path" "$macro_zip_path" "$addon_zip_path" -R "$source_repo" -F "$release_notes" --target "$commit" "${prerelease_flag[@]}"
 
 foundry_extension_target_dir="$binary_repo_dir/Sources/FoundryExtension"
 rm -rf "$foundry_extension_target_dir"
