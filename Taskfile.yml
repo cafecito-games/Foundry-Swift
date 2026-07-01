@@ -75,7 +75,7 @@ tasks:
 
         (
           cd "$tmp_dir"
-          "$foundry_bin" --headless --dump-foundry_extension-interface
+          "$foundry_bin" --headless --dump-foundryextension-interface
         )
 
         mkdir -p "$(dirname "$OUTPUT")"
@@ -83,12 +83,42 @@ tasks:
         head -5 "$OUTPUT"
         BASH
 
+  foundry:dump-interface-json:
+    desc: Dump foundry_extension_interface.json from the local Foundry binary
+    silent: true
+    env:
+      FOUNDRY_BIN: '{{.FOUNDRY_BIN | default "foundry"}}'
+      OUTPUT: '{{.OUTPUT | default "Sources/ExtensionApi/foundry_extension_interface.json"}}'
+    cmds:
+      - |
+        bash <<'BASH'
+        set -euo pipefail
+
+        foundry_bin="$FOUNDRY_BIN"
+        if resolved=$(command -v "$foundry_bin" 2>/dev/null); then
+          foundry_bin="$resolved"
+        fi
+
+        tmp_dir=$(mktemp -d)
+        trap 'rm -rf "$tmp_dir"' EXIT
+
+        (
+          cd "$tmp_dir"
+          "$foundry_bin" --headless --dump-foundryextension-interface-json
+        )
+
+        mkdir -p "$(dirname "$OUTPUT")"
+        cp "$tmp_dir/foundry_extension_interface.json" "$OUTPUT"
+        jq '.format_version' "$OUTPUT"
+        BASH
+
   foundry:update-api:
-    desc: Update extension_api.json and foundry_extension_interface.h from the local Foundry binary
+    desc: Update Foundry extension API artifacts from the local Foundry binary
     silent: true
     cmds:
       - task foundry:dump-api FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
       - task foundry:dump-interface FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
+      - task foundry:dump-interface-json FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
 
   foundry:show-api-version:
     desc: Print the Foundry API version currently checked in

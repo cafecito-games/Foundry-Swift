@@ -17,7 +17,7 @@ extension UTType {
     public nonisolated(unsafe) static var foundryScene = UTType(filenameExtension: "tscn")
 
     /// The file type that corresponds to a FoundryScript file.
-    public nonisolated(unsafe) static var gdscript = UTType(filenameExtension: "gd")
+    public nonisolated(unsafe) static var foundryScript = UTType(filenameExtension: "gd")
 
     /// The file type that corresponds to a Foundry shader file.
     public nonisolated(unsafe) static var foundryShader = UTType(filenameExtension: "gdshader")

@@ -473,7 +473,7 @@ let core: [String] = [
     "FoundryExtension.swift",
     "FoundryExtensionManager.swift",
     "FoundryScript.swift",
-    "GodotInstance.swift",
+    "FoundryInstance.swift",
     "Gradient.swift",
     "GradientTexture1D.swift",
     "HMACContext.swift",

@@ -102,7 +102,7 @@ if let gameManager = Engine.getSingleton(name: StringName("MyGameManager")) as? 
 
 ### From FoundryScript
 
-```gdscript
+```FoundryScript
 var game_manager = Engine.get_singleton("MyGameManager")
 game_manager.save_game()
 ```
@@ -266,7 +266,7 @@ func teardownScene(level: FoundryExtension.InitializationLevel) {
 
 Usage from FoundryScript:
 
-```gdscript
+```FoundryScript
 func _on_coin_collected():
     var game_state = Engine.get_singleton("GameState")
     game_state.add_score(100)
