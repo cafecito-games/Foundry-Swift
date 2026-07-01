@@ -62,15 +62,32 @@ The `FoundrySwift` product carries the prebuilt runtime *and* the prebuilt macro
 
 ## Using FoundrySwift as a Foundry Addon
 
-Foundry projects that use Swift-based addons can install the shared FoundrySwift binary addon with gpm:
+Foundry projects that use Swift-based addons can install the shared FoundrySwift binary addon with [`anvil`](https://github.com/cafecito-games/Foundry-Tools), the Foundry-specific tooling. Add the package to your project's `packages.toml`:
 
 ```toml
-[addons.FoundrySwift]
+[packages.FoundrySwift]
 source      = "github-release"
 repo        = "cafecito-games/Foundry-Swift"
 version     = "v<X.Y.Z>"
 asset       = "FoundrySwift-v<X.Y.Z>.zip"
 source_path = "addons/FoundrySwift"
+```
+
+Then install it into the project's `addons/` directory:
+
+```bash
+anvil pkg install
+```
+
+Or add it directly from the command line:
+
+```bash
+anvil pkg add --name FoundrySwift \
+  --source github-release \
+  --repo cafecito-games/Foundry-Swift \
+  --version v<X.Y.Z> \
+  --asset FoundrySwift-v<X.Y.Z>.zip \
+  --source-path addons/FoundrySwift
 ```
 
 The addon registers a single no-op FoundryExtension named **FoundrySwiftEmbed** whose only job is to own embedding `FoundrySwift.framework` / `FoundrySwift.xcframework` into iOS and macOS exports. Its `[dependencies]` block points at the bundled FoundrySwift binary, so Foundry's exporter copies FoundrySwift into `App.app/Frameworks/` exactly once regardless of how many downstream Swift FoundryExtensions are installed alongside it.
