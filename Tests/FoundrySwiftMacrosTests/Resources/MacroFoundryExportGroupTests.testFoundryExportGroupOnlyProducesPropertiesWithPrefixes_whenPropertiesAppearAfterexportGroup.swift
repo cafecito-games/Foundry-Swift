@@ -1,0 +1,93 @@
+class Car: Node {
+    var vin: String = "00000000000000000"
+
+    static func _mproxy_set_vin(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for vin: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "vin", object.vin) {
+            object.vin = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_vin(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for vin: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.vin)
+    }
+    var year: Int = 1997
+
+    static func _mproxy_set_year(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for year: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "year", object.year) {
+            object.year = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_year(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for year: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.year)
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: Car.self) else {
+            return
+        }
+        let className = StringName("Car")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \Car.vin,
+                name: "vin",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_vin",
+            setterName: "set_vin",
+            getterFunction: Car._mproxy_get_vin,
+            setterFunction: Car._mproxy_set_vin
+        )
+        FoundrySwift._addPropertyGroup(className: className, name: "YMMS", prefix: "")
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \Car.year,
+                name: "year",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_year",
+            setterName: "set_year",
+            getterFunction: Car._mproxy_get_year,
+            setterFunction: Car._mproxy_set_year
+        )
+    }
+}

@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+script="scripts/package-foundry-addon"
+release_script="scripts/release"
+swift_workflow=".github/workflows/swift.yml"
+
+[[ -x "$script" ]] || fail "package-foundry-addon script must exist and be executable"
+
+work_dir=$(mktemp -d)
+trap 'rm -rf "$work_dir"' EXIT
+
+# Build a fake FoundrySwift xcframework with a versioned macOS framework, plus a
+# minimal FoundrySwiftEmbed xcframework. The two xcframeworks parallel what the
+# release pipeline produces.
+make_fake_xcframework() {
+    local module=$1
+    local xcf="$work_dir/$module.xcframework"
+    local mac="$xcf/macos-arm64/$module.framework"
+
+    mkdir -p \
+        "$xcf/ios-arm64/$module.framework" \
+        "$xcf/ios-arm64-simulator/$module.framework" \
+        "$mac/Versions/A/Headers" \
+        "$mac/Versions/A/Modules/$module.swiftmodule" \
+        "$mac/Versions/A/Resources"
+
+    printf 'fake xcframework plist\n' > "$xcf/Info.plist"
+    printf 'fake ios device binary\n' > "$xcf/ios-arm64/$module.framework/$module"
+    printf 'fake ios simulator binary\n' > "$xcf/ios-arm64-simulator/$module.framework/$module"
+    printf 'fake macos binary\n' > "$mac/Versions/A/$module"
+    printf 'fake header\n' > "$mac/Versions/A/Headers/$module-Swift.h"
+    printf 'fake module\n' > "$mac/Versions/A/Modules/module.modulemap"
+    printf 'fake swiftmodule\n' > "$mac/Versions/A/Modules/$module.swiftmodule/arm64-apple-macos.swiftmodule"
+    printf 'fake plist\n' > "$mac/Versions/A/Resources/Info.plist"
+
+    ln -s A "$mac/Versions/Current"
+    ln -s Versions/Current/Headers "$mac/Headers"
+    ln -s Versions/Current/Modules "$mac/Modules"
+    ln -s Versions/Current/Resources "$mac/Resources"
+    ln -s "Versions/Current/$module" "$mac/$module"
+
+    printf '%s\n' "$xcf"
+}
+
+xcframework=$(make_fake_xcframework FoundrySwift)
+embed_xcframework=$(make_fake_xcframework FoundrySwiftEmbed)
+
+output_dir="$work_dir/output"
+"$script" "v1.2.3-rc.1" "$xcframework" "$embed_xcframework" "$output_dir" >/dev/null
+
+zip_path="$output_dir/FoundrySwift-v1.2.3-rc.1.zip"
+[[ -f "$zip_path" ]] || fail "expected addon zip at $zip_path"
+
+stage_root="$output_dir/dist/addons/FoundrySwift"
+[[ -d "$stage_root" ]] || fail "expected staged addon tree at $stage_root"
+
+extract_dir="$work_dir/extract"
+mkdir -p "$extract_dir"
+unzip -q "$zip_path" -d "$extract_dir"
+
+addon="$extract_dir/addons/FoundrySwift"
+[[ -d "$addon" ]] || fail "zip must extract to addons/FoundrySwift"
+[[ "$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d -name addons | wc -l | tr -d ' ')" == "1" ]] || fail "zip must have only addons at the root"
+
+[[ -f "$addon/plugin.cfg" ]] || fail "plugin.cfg missing"
+[[ -f "$addon/LICENSE" ]] || fail "LICENSE missing"
+cmp -s LICENSE "$addon/LICENSE" || fail "addon LICENSE must match repo LICENSE"
+[[ -f "$addon/FoundrySwiftEmbed.foundryextension" ]] || fail "FoundrySwiftEmbed.foundryextension missing"
+[[ -d "$addon/bin/ios/FoundrySwift.xcframework" ]] || fail "iOS FoundrySwift.xcframework missing"
+[[ -d "$addon/bin/ios/FoundrySwiftEmbed.xcframework" ]] || fail "iOS FoundrySwiftEmbed.xcframework missing"
+[[ -d "$addon/bin/macos_arm64/FoundrySwift.framework" ]] || fail "macOS FoundrySwift.framework missing"
+[[ -d "$addon/bin/macos_arm64/FoundrySwiftEmbed.framework" ]] || fail "macOS FoundrySwiftEmbed.framework missing"
+
+unexpected_addon_entries=$(find "$addon" -mindepth 1 -maxdepth 1 ! -name plugin.cfg ! -name LICENSE ! -name bin ! -name 'FoundrySwiftEmbed.foundryextension' -print)
+[[ -z "$unexpected_addon_entries" ]] || fail "unexpected top-level addon entries: $unexpected_addon_entries"
+
+unexpected_bin_entries=$(find "$addon/bin" -mindepth 1 -maxdepth 1 ! -name ios ! -name macos_arm64 -print)
+[[ -z "$unexpected_bin_entries" ]] || fail "unexpected bin entries: $unexpected_bin_entries"
+
+# Only FoundrySwiftEmbed.foundryextension is allowed; nothing under bin/ should be a
+# .foundryextension file.
+foundry_extension_files=$(find "$addon" -name '*.foundryextension' -print)
+if [[ "$foundry_extension_files" != "$addon/FoundrySwiftEmbed.foundryextension" ]]; then
+    fail "expected only FoundrySwiftEmbed.foundryextension; got: $foundry_extension_files"
+fi
+
+if zipinfo -l "$zip_path" | awk '$1 ~ /^l/ { found = 1 } END { exit found ? 0 : 1 }'; then
+    zipinfo -l "$zip_path" | awk '$1 ~ /^l/ { print }' >&2
+    fail "FoundrySwift addon zip must not contain symlink entries; gpm refuses to extract them"
+fi
+
+if find "$addon" -type l -print | grep -q .; then
+    find "$addon" -type l -print >&2
+    fail "FoundrySwift addon zip must extract without symlinks"
+fi
+
+for forbidden in '*.swift' '*.h' '*.swiftmodule'; do
+    if find "$addon" \
+        \( -path "$addon/bin/ios/FoundrySwift.xcframework/*" \
+           -o -path "$addon/bin/ios/FoundrySwiftEmbed.xcframework/*" \
+           -o -path "$addon/bin/macos_arm64/FoundrySwift.framework/*" \
+           -o -path "$addon/bin/macos_arm64/FoundrySwiftEmbed.framework/*" \) -prune \
+        -o -name "$forbidden" -print | grep -q .; then
+        fail "found $forbidden outside binary bundles"
+    fi
+done
+
+expected_plugin="$work_dir/expected-plugin.cfg"
+cat > "$expected_plugin" <<'EOF'
+[plugin]
+name="FoundrySwift"
+description="Shared FoundrySwift xcframework/framework for iOS/macOS FoundryExtensions. Registers a no-op FoundrySwiftEmbed extension that owns embedding FoundrySwift.framework into exported apps; downstream FoundryExtensions should not list FoundrySwift in their own [dependencies]."
+author="cafecito-games"
+version="1.2.3-rc.1"
+script=""
+EOF
+cmp -s "$expected_plugin" "$addon/plugin.cfg" || {
+    echo "Expected plugin.cfg:" >&2
+    cat "$expected_plugin" >&2
+    echo "Actual plugin.cfg:" >&2
+    cat "$addon/plugin.cfg" >&2
+    fail "plugin.cfg contents differ"
+}
+
+expected_foundry_extension="$work_dir/expected.foundryextension"
+cat > "$expected_foundry_extension" <<'EOF'
+[configuration]
+entry_symbol = "foundry_swift_embed_entry_point"
+compatibility_minimum = "0.1.0"
+
+[libraries]
+ios.debug = "res://addons/FoundrySwift/bin/ios/FoundrySwiftEmbed.xcframework"
+ios.release = "res://addons/FoundrySwift/bin/ios/FoundrySwiftEmbed.xcframework"
+ios.simulator.debug = "res://addons/FoundrySwift/bin/ios/FoundrySwiftEmbed.xcframework"
+ios.simulator.release = "res://addons/FoundrySwift/bin/ios/FoundrySwiftEmbed.xcframework"
+macos.arm64 = "res://addons/FoundrySwift/bin/macos_arm64/FoundrySwiftEmbed.framework"
+
+[dependencies]
+ios.debug = { "res://addons/FoundrySwift/bin/ios/FoundrySwift.xcframework": "" }
+ios.release = { "res://addons/FoundrySwift/bin/ios/FoundrySwift.xcframework": "" }
+ios.simulator.debug = { "res://addons/FoundrySwift/bin/ios/FoundrySwift.xcframework": "" }
+ios.simulator.release = { "res://addons/FoundrySwift/bin/ios/FoundrySwift.xcframework": "" }
+macos.arm64 = { "res://addons/FoundrySwift/bin/macos_arm64/FoundrySwift.framework": "" }
+EOF
+cmp -s "$expected_foundry_extension" "$addon/FoundrySwiftEmbed.foundryextension" || {
+    echo "Expected FoundrySwiftEmbed.foundryextension:" >&2
+    cat "$expected_foundry_extension" >&2
+    echo "Actual FoundrySwiftEmbed.foundryextension:" >&2
+    cat "$addon/FoundrySwiftEmbed.foundryextension" >&2
+    fail "FoundrySwiftEmbed.foundryextension contents differ"
+}
+
+for module in FoundrySwift FoundrySwiftEmbed; do
+    framework="$addon/bin/macos_arm64/$module.framework"
+    [[ -f "$framework/Versions/A/$module" ]] || fail "macOS $module.framework must keep Versions/A/$module for its install name"
+    [[ -f "$framework/Versions/Current/$module" ]] || fail "macOS $module.framework must materialize Versions/Current/$module"
+    [[ -f "$framework/$module" ]] || fail "macOS $module.framework must materialize root binary"
+    [[ -d "$framework/Headers" ]] || fail "macOS $module.framework must materialize root Headers directory"
+    [[ -d "$framework/Modules" ]] || fail "macOS $module.framework must materialize root Modules directory"
+done
+
+rg -q 'scripts/package-foundry-addon "\$tag" "\$output_dir/FoundrySwift\.xcframework" "\$output_dir/FoundrySwiftEmbed\.xcframework" "\$output_dir"' "$release_script" || fail "release script must package the Foundry addon from both release xcframeworks"
+rg -q 'FoundrySwift-\$tag\.zip' "$release_script" || fail "release script must name the addon zip FoundrySwift-\$tag.zip"
+rg -q 'gh release create "\$tag" "\$zip_path" "\$macro_zip_path" "\$addon_zip_path"' "$release_script" || fail "release script must upload the addon zip with the release assets"
+if rg -q 'no longer using vXXX|v-prefixed tags|\[\[ "\$RELEASE_TAG" == v\* \]\]' "$release_script" .github/workflows/release.yml; then
+    fail "release path must allow v-prefixed tags for Foundry addon assets"
+fi
+rg -q '^package-foundry-addon:' Makefile || fail "Makefile must expose package-foundry-addon"
+rg -q 'scripts/test-package-foundry-addon' "$swift_workflow" || fail "CI must run package-foundry-addon regression tests"
+
+echo "Foundry addon packaging tests passed"

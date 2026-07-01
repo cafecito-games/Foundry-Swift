@@ -1,0 +1,152 @@
+version: "3"
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  foundry:version:
+    desc: Print the version of the local Foundry editor build
+    silent: true
+    env:
+      FOUNDRY_BIN: '{{.FOUNDRY_BIN | default "foundry"}}'
+    cmds:
+      - |
+        bash <<'BASH'
+        set -euo pipefail
+
+        foundry_bin="$FOUNDRY_BIN"
+        if resolved=$(command -v "$foundry_bin" 2>/dev/null); then
+          foundry_bin="$resolved"
+        fi
+
+        "$foundry_bin" --version
+        BASH
+
+  foundry:dump-api:
+    desc: Dump extension_api.json with docs from the local Foundry binary
+    silent: true
+    env:
+      FOUNDRY_BIN: '{{.FOUNDRY_BIN | default "foundry"}}'
+      OUTPUT: '{{.OUTPUT | default "Sources/ExtensionApi/extension_api.json"}}'
+    cmds:
+      - |
+        bash <<'BASH'
+        set -euo pipefail
+
+        foundry_bin="$FOUNDRY_BIN"
+        if resolved=$(command -v "$foundry_bin" 2>/dev/null); then
+          foundry_bin="$resolved"
+        fi
+
+        tmp_dir=$(mktemp -d)
+        trap 'rm -rf "$tmp_dir"' EXIT
+
+        (
+          cd "$tmp_dir"
+          "$foundry_bin" --headless --dump-extension-api-with-docs
+        )
+
+        mkdir -p "$(dirname "$OUTPUT")"
+        cp "$tmp_dir/extension_api.json" "$OUTPUT"
+        jq '.header' "$OUTPUT"
+        BASH
+
+  foundry:dump-interface:
+    desc: Dump foundry_extension_interface.h from the local Foundry binary
+    silent: true
+    env:
+      FOUNDRY_BIN: '{{.FOUNDRY_BIN | default "foundry"}}'
+      OUTPUT: '{{.OUTPUT | default "Sources/FoundryExtension/include/foundry_extension_interface.h"}}'
+    cmds:
+      - |
+        bash <<'BASH'
+        set -euo pipefail
+
+        foundry_bin="$FOUNDRY_BIN"
+        if resolved=$(command -v "$foundry_bin" 2>/dev/null); then
+          foundry_bin="$resolved"
+        fi
+
+        tmp_dir=$(mktemp -d)
+        trap 'rm -rf "$tmp_dir"' EXIT
+
+        (
+          cd "$tmp_dir"
+          "$foundry_bin" --headless --dump-foundry_extension-interface
+        )
+
+        mkdir -p "$(dirname "$OUTPUT")"
+        cp "$tmp_dir/foundry_extension_interface.h" "$OUTPUT"
+        head -5 "$OUTPUT"
+        BASH
+
+  foundry:update-api:
+    desc: Update extension_api.json and foundry_extension_interface.h from the local Foundry binary
+    silent: true
+    cmds:
+      - task foundry:dump-api FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
+      - task foundry:dump-interface FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
+
+  foundry:show-api-version:
+    desc: Print the Foundry API version currently checked in
+    silent: true
+    cmds:
+      - jq -r '.header.version_full_name' Sources/ExtensionApi/extension_api.json
+
+  codegen:check:
+    desc: Run FoundrySwift code generation in a clean scratch build
+    vars:
+      SCRATCH_PATH: '{{.SCRATCH_PATH | default ".build/codegen-check"}}'
+    cmds:
+      - rm -rf '{{.SCRATCH_PATH}}'
+      - swift build --target FoundrySwift --scratch-path '{{.SCRATCH_PATH}}' -Xswiftc -no-verify-emitted-module-interface
+
+  foundry:check:
+    desc: Update API from Foundry and verify FoundrySwift code generation
+    silent: true
+    vars:
+      SCRATCH_PATH: '{{.SCRATCH_PATH | default ".build/foundry-codegen-check"}}'
+    cmds:
+      - task foundry:version FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
+      - task foundry:update-api FOUNDRY_BIN='{{.FOUNDRY_BIN | default "foundry"}}'
+      - task foundry:show-api-version
+      - task codegen:check SCRATCH_PATH='{{.SCRATCH_PATH}}'
+
+  build:
+    desc: Build FoundrySwift and tests
+    cmds:
+      - swift build --build-tests
+
+  test:
+    desc: Run Swift tests
+    cmds:
+      - swift test
+
+  test:foundry:
+    desc: Run Foundry-based tests; pass FILTER=SuiteName.testName to narrow
+    env:
+      FOUNDRYSWIFT_TEST_FILTER: '{{.FILTER | default ""}}'
+      FOUNDRY_BIN: '{{.FOUNDRY_BIN | default "foundry"}}'
+    cmds:
+      - swift run FoundrySwiftTestRunner
+
+  test:release:
+    desc: Run release workflow helper tests
+    silent: true
+    cmds:
+      - scripts/test-make-foundryswift-framework
+      - scripts/test-release-build-configuration
+      - scripts/test-binary-manifest
+      - scripts/test-package-resolution
+      - scripts/test-distribution-package-staging
+      - scripts/test-package-foundry-addon
+      - scripts/test-release-toolchain
+
+  test:generator:
+    desc: Run generator custom-API regression tests
+    silent: true
+    cmds:
+      - scripts/test-generator-custom-api

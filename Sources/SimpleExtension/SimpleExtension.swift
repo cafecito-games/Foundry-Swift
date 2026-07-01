@@ -1,0 +1,101 @@
+//
+//  Demo.swift
+//
+//  Created by Miguel de Icaza on 4/4/23.
+//
+
+import Foundation
+import FoundrySwift
+
+// Accessed only during @MainActor init; nonisolated(unsafe) avoids a global-actor annotation on sample code.
+nonisolated(unsafe) var sequence = 0
+
+@Foundry
+class Rigid: RigidBody2D {
+    override func _integrateForces(state: PhysicsDirectBodyState2D?) {
+        guard let xform = state?.transform else {
+            return
+        }
+        print (xform)
+    }
+}
+
+@Foundry
+class MultiBindingExample: Node {
+//    @Export var one: String = "one", two: Bool = false, three: Int = 50
+}
+
+enum MyEnum: Int, CaseIterable {
+    case first = 10
+    case late = 20
+}
+
+typealias SomeArray = [Int]
+
+@Foundry
+class SwiftSprite: Sprite2D {    
+    var time_passed: Double = 0
+    var count: Int = 0
+    
+    @Export
+    var someCollection: TypedArray<Int> = [1, 2, 3, 4]
+    
+    @Signal var pickedUpItem: SignalWithArguments<String, Bool, Int>
+    @Signal var scored: SimpleSignal
+    @Signal var livesChanged: SignalWithArguments<Int>
+    
+    @Callable
+    public func computeFoundry (x: String, y: Int) -> Double {
+        return 1.0
+    }
+
+    @Callable func addRapportToScene(paths: TypedArray<Node?>) {
+    }
+    
+    @Callable
+    public func wink () {
+        print ("Wink")
+    }
+    
+    @Callable
+    public func computerSimple (_ x: Int, _ y: Int) -> Double {
+        return Double (x + y)
+    }
+
+    @Export var resource: Resource?
+    @Export(.dir) var directory: String?
+    @Export(.file, "*txt") var file: String?
+    @Export var demo: String = "demo"
+    @Export var food: String = "none"
+    
+    var x: Rigid?
+    
+    override func _process (delta: Double) {
+        time_passed += delta
+    
+        if x == nil {
+            self.x = Rigid()
+        }
+        guard let imageVariant = ProjectSettings.getSetting(name: "shader_globals/heightmap", defaultValue: Variant(-1)) else {
+            return
+        }
+        
+        Foundry.print("Found this value IMAGE: \(imageVariant.gtype) variant: \(imageVariant) desc: \(imageVariant.description)")
+        
+        let dict2: VariantDictionary? = VariantDictionary(imageVariant)
+        Foundry.print("dictionary2: \(String(describing: dict2)) \(dict2?["type"]?.description ?? "no type") \(dict2?["value"]?.description ?? "no value")")
+        
+        // part b
+        if let result = dict2?.get(key: Variant("type"), default: Variant(-1)) {
+            let value = String(result) ?? "No Result"
+            Foundry.print("2 Found this value \(value)")
+        }
+        
+        let lerp = Double(0.1).lerp(to: 10, weight: 1)
+        print ("Lerp result from 0.1 to 10 weight:1 => \(lerp)")
+        let newPos = Vector2(x: Float (10 + (10 * sin(time_passed * 2.0))),
+                             y: Float (10.0 + (10.0 * cos(time_passed * 1.5))))
+        
+        self.position = newPos
+    }
+}

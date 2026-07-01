@@ -1,0 +1,76 @@
+final class MyData: Resource {
+
+    nonisolated override public class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: MyData.self) else {
+            return
+        }
+        let className = StringName("MyData")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+    }
+}
+final class MyClass: Node {
+    var data: MyData = .init()
+
+    static func _mproxy_set_data(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for data: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "data", object.data) {
+            object.data = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_data(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for data: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.data)
+    }
+
+    nonisolated override public class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: MyClass.self) else {
+            return
+        }
+        let className = StringName("MyClass")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \MyClass.data,
+                name: "data",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_data",
+            setterName: "set_data",
+            getterFunction: MyClass._mproxy_get_data,
+            setterFunction: MyClass._mproxy_set_data
+        )
+    }
+}

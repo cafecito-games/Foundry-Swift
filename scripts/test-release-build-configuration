@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+rg -q 'FOUNDRY_SWIFT_CONFIGURATION' scripts/build-distribution-products || fail "build-distribution-products must expose FOUNDRY_SWIFT_CONFIGURATION"
+rg -q -- '-configuration "\$configuration"' scripts/build-distribution-products || fail "distribution xcodebuild must pass explicit configuration"
+rg -q 'Build/Products/Release/PackageFrameworks/FoundrySwift.framework' .github/workflows/release.yml || fail "release workflow must package macOS Release products"
+rg -q 'Build/Products/Release-iphoneos/PackageFrameworks/FoundrySwift.framework' .github/workflows/release.yml || fail "release workflow must package iOS Release products"
+rg -q 'FOUNDRY_SWIFT_CONFIGURATION.*Release' .github/workflows/release.yml || fail "release workflow must set FOUNDRY_SWIFT_CONFIGURATION to Release"
+
+if rg -q 'Build/Products/Debug' .github/workflows/release.yml scripts/release scripts/make-foundryswift-framework; then
+    fail "release packaging should not hard-code Debug product paths"
+fi
+
+echo "release build configuration tests passed"

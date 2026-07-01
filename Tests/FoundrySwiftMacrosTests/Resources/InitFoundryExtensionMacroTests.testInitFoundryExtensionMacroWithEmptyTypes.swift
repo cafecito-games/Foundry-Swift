@@ -1,0 +1,30 @@
+@_cdecl("libchrysalis_entry_point") public func enterExtension(interface: OpaquePointer?, library: OpaquePointer?, extension: OpaquePointer?) -> UInt8 {
+    guard let library, let interface, let `extension` else {
+        print ("Error: Not all parameters were initialized.")
+        return 0
+    }
+
+    let types: [ExtensionInitializationLevel: [Object.Type]]
+    do {
+        types = try [].prepareForRegistration()
+    } catch {
+        Foundry.printErr("Error during FoundryExtension initialization: \(error)")
+        return 0
+    }
+
+    initializeSwiftModule (interface, library, `extension`, initHook: { level in
+        types[level]?.forEach(register)
+        if level == .scene {
+
+        } else if level == .editor {
+            if false {
+                EditorInterop.loadLibraryDocs()
+            }
+        }
+
+    }, deInitHook: { level in
+        types[level]?.reversed().forEach(unregister)
+
+    }, minimumInitializationLevel: minimumInitializationLevel(for: types))
+    return 1
+}

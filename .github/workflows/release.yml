@@ -1,0 +1,481 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0 or 0.1.0
+        required: true
+        type: string
+      commit:
+        description: Commit SHA to release. Defaults to the workflow ref.
+        required: false
+        type: string
+      release_notes:
+        description: Release notes for the GitHub release.
+        required: true
+        type: string
+      include_macos_x86:
+        description: Also build a macOS x86_64 (Intel) slice.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  FOUNDRY_SWIFT_RELEASE_XCODE: "26.4.0"
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      commit: ${{ steps.release.outputs.commit }}
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release token
+        env:
+          RELEASE_TOKEN: ${{ secrets.FOUNDRY_SWIFT_RELEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_TOKEN" ]]; then
+            echo "::error title=Missing secret::Set FOUNDRY_SWIFT_RELEASE_TOKEN to a token with Contents read/write access to cafecito-games/Foundry-Swift and cafecito-games/Foundry-Swift-Binary."
+            exit 1
+          fi
+
+      - name: Prepare release inputs
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+          RELEASE_TOKEN: ${{ secrets.FOUNDRY_SWIFT_RELEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_COMMIT" ]]; then
+            RELEASE_COMMIT="$GITHUB_SHA"
+          fi
+
+          git rev-parse --verify "$RELEASE_COMMIT^{commit}" >/dev/null
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error title=Release exists::A GitHub release already exists for $RELEASE_TAG."
+            exit 1
+          fi
+
+          if git rev-parse --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error title=Source tag exists::FoundrySwift already has tag $RELEASE_TAG."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags "https://x-access-token:${RELEASE_TOKEN}@github.com/cafecito-games/Foundry-Swift-Binary.git" "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error title=Binary tag exists::Foundry-Swift-Binary already has tag $RELEASE_TAG."
+            exit 1
+          fi
+
+          echo "commit=$RELEASE_COMMIT" >> "$GITHUB_OUTPUT"
+
+  stage-package:
+    name: Stage generated sources
+    needs: prepare
+    runs-on: blacksmith-6vcpu-macos-26
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Stage generated-source distribution package
+        env:
+          FOUNDRY_SWIFT_DESTINATION: platform=macOS,arch=arm64
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-stage-derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_GENERATION_DERIVED_DATA: ${{ runner.temp }}/foundryswift-stage-generation-derived
+          FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-package
+          FOUNDRY_SWIFT_ARCHIVE_PATH: ${{ runner.temp }}/foundryswift-stage-archive
+          FOUNDRY_SWIFT_STAGE_ONLY: 1
+        run: |
+          scripts/build-distribution-products
+
+      - name: Pack generated-source distribution package
+        run: |
+          tar -czf "$RUNNER_TEMP/foundryswift-distribution-package.tgz" -C "$RUNNER_TEMP" foundryswift-distribution-package
+
+      - name: Upload generated-source distribution package
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundryswift-distribution-package
+          path: ${{ runner.temp }}/foundryswift-distribution-package.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-x86:
+    name: Build macOS x86_64
+    needs:
+      - prepare
+      - stage-package
+    runs-on: blacksmith-6vcpu-macos-26
+    if: ${{ inputs.include_macos_x86 }}
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Download generated-source distribution package
+        uses: actions/download-artifact@v4
+        with:
+          name: foundryswift-distribution-package
+          path: ${{ runner.temp }}
+
+      - name: Extract generated-source distribution package
+        run: |
+          tar -xzf "$RUNNER_TEMP/foundryswift-distribution-package.tgz" -C "$RUNNER_TEMP"
+
+      - name: Build macOS x86_64 distribution products
+        env:
+          FOUNDRY_SWIFT_DESTINATION: platform=macOS,arch=x86_64
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-package
+          FOUNDRY_SWIFT_GENERATION_DERIVED_DATA: ${{ runner.temp }}/foundryswift-generation-derived
+          FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-build-package
+          FOUNDRY_SWIFT_ARCHIVE_PATH: ${{ runner.temp }}/foundryswift-archive
+        run: |
+          scripts/build-distribution-products
+
+      - name: Pack release products
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+        run: |
+          tar -czf "$RUNNER_TEMP/foundryswift-x86-products.tgz" -C "$DERIVED_DATA" \
+            Build/Products/Release/PackageFrameworks/FoundrySwift.framework \
+            Build/Products/Release/PackageFrameworks/FoundrySwiftEmbed.framework \
+            Build/Products/Release/FoundrySwift.swiftmodule \
+            Build/Intermediates.noindex/GeneratedModuleMaps
+
+      - name: Upload release products
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundryswift-x86-products
+          path: ${{ runner.temp }}/foundryswift-x86-products.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-ios:
+    name: Build iOS
+    needs:
+      - prepare
+      - stage-package
+    runs-on: blacksmith-6vcpu-macos-26
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Download generated-source distribution package
+        uses: actions/download-artifact@v4
+        with:
+          name: foundryswift-distribution-package
+          path: ${{ runner.temp }}
+
+      - name: Extract generated-source distribution package
+        run: |
+          tar -xzf "$RUNNER_TEMP/foundryswift-distribution-package.tgz" -C "$RUNNER_TEMP"
+
+      - name: Build iOS distribution products
+        env:
+          FOUNDRY_SWIFT_DESTINATION: generic/platform=iOS
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-package
+          FOUNDRY_SWIFT_GENERATION_DERIVED_DATA: ${{ runner.temp }}/foundryswift-generation-derived
+          FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-build-package
+          FOUNDRY_SWIFT_ARCHIVE_PATH: ${{ runner.temp }}/foundryswift-archive
+        run: |
+          scripts/build-distribution-products
+
+      - name: Pack release products
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+        run: |
+          tar -czf "$RUNNER_TEMP/foundryswift-ios-products.tgz" -C "$DERIVED_DATA" \
+            Build/Products/Release-iphoneos/PackageFrameworks/FoundrySwift.framework \
+            Build/Products/Release-iphoneos/PackageFrameworks/FoundrySwiftEmbed.framework \
+            Build/Products/Release-iphoneos/FoundrySwift.swiftmodule \
+            Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos
+
+      - name: Upload release products
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundryswift-ios-products
+          path: ${{ runner.temp }}/foundryswift-ios-products.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-ios-simulator:
+    name: Build iOS Simulator
+    needs:
+      - prepare
+      - stage-package
+    runs-on: blacksmith-6vcpu-macos-26
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Download generated-source distribution package
+        uses: actions/download-artifact@v4
+        with:
+          name: foundryswift-distribution-package
+          path: ${{ runner.temp }}
+
+      - name: Extract generated-source distribution package
+        run: |
+          tar -xzf "$RUNNER_TEMP/foundryswift-distribution-package.tgz" -C "$RUNNER_TEMP"
+
+      - name: Build iOS Simulator distribution products
+        env:
+          FOUNDRY_SWIFT_DESTINATION: generic/platform=iOS Simulator
+          FOUNDRY_SWIFT_ARCHS: arm64
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-package
+          FOUNDRY_SWIFT_GENERATION_DERIVED_DATA: ${{ runner.temp }}/foundryswift-generation-derived
+          FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-build-package
+          FOUNDRY_SWIFT_ARCHIVE_PATH: ${{ runner.temp }}/foundryswift-archive
+        run: |
+          scripts/build-distribution-products
+
+      - name: Pack release products
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+        run: |
+          tar -czf "$RUNNER_TEMP/foundryswift-ios-simulator-products.tgz" -C "$DERIVED_DATA" \
+            Build/Products/Release-iphonesimulator/PackageFrameworks/FoundrySwift.framework \
+            Build/Products/Release-iphonesimulator/PackageFrameworks/FoundrySwiftEmbed.framework \
+            Build/Products/Release-iphonesimulator/FoundrySwift.swiftmodule \
+            Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator
+
+      - name: Upload release products
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundryswift-ios-simulator-products
+          path: ${{ runner.temp }}/foundryswift-ios-simulator-products.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-arm64:
+    name: Build macOS arm64
+    needs:
+      - prepare
+      - stage-package
+    runs-on: blacksmith-6vcpu-macos-26
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Download generated-source distribution package
+        uses: actions/download-artifact@v4
+        with:
+          name: foundryswift-distribution-package
+          path: ${{ runner.temp }}
+
+      - name: Extract generated-source distribution package
+        run: |
+          tar -xzf "$RUNNER_TEMP/foundryswift-distribution-package.tgz" -C "$RUNNER_TEMP"
+
+      - name: Build macOS arm64 distribution products
+        env:
+          FOUNDRY_SWIFT_DESTINATION: platform=macOS,arch=arm64
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-package
+          FOUNDRY_SWIFT_GENERATION_DERIVED_DATA: ${{ runner.temp }}/foundryswift-generation-derived
+          FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR: ${{ runner.temp }}/foundryswift-distribution-build-package
+          FOUNDRY_SWIFT_ARCHIVE_PATH: ${{ runner.temp }}/foundryswift-archive
+        run: |
+          scripts/build-distribution-products
+
+      - name: Pack release products
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/foundryswift-derived
+        run: |
+          tar -czf "$RUNNER_TEMP/foundryswift-arm64-products.tgz" -C "$DERIVED_DATA" \
+            Build/Products/Release/PackageFrameworks/FoundrySwift.framework \
+            Build/Products/Release/PackageFrameworks/FoundrySwiftEmbed.framework \
+            Build/Products/Release/FoundrySwift.swiftmodule \
+            Build/Intermediates.noindex/GeneratedModuleMaps
+
+      - name: Upload release products
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundryswift-arm64-products
+          path: ${{ runner.temp }}/foundryswift-arm64-products.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Package and publish binary release
+    needs:
+      - prepare
+      - build-x86
+      - build-ios
+      - build-ios-simulator
+      - build-arm64
+    runs-on: blacksmith-6vcpu-macos-26
+    if: >-
+      ${{ !cancelled()
+      && needs.prepare.result == 'success'
+      && needs.build-ios.result == 'success'
+      && needs.build-ios-simulator.result == 'success'
+      && needs.build-arm64.result == 'success'
+      && (needs.build-x86.result == 'success' || needs.build-x86.result == 'skipped') }}
+
+    steps:
+      - name: Checkout FoundrySwift
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ env.FOUNDRY_SWIFT_RELEASE_XCODE }}"
+
+      - name: Show build environment
+        run: |
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone Foundry-Swift-Binary
+        env:
+          RELEASE_TOKEN: ${{ secrets.FOUNDRY_SWIFT_RELEASE_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${RELEASE_TOKEN}@github.com/cafecito-games/Foundry-Swift-Binary.git" "$RUNNER_TEMP/Foundry-Swift-Binary"
+
+      - name: Download release products
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/release-products
+
+      - name: Stage release products
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/foundryswift-builds/release/derived
+        run: |
+          # The arm64-macOS, iOS-device, and iOS-simulator tarballs all extract
+          # into the same DERIVED_DATA. This is safe only because each job packs
+          # SDK-suffixed, disjoint top-level paths (Release / Release-iphoneos /
+          # Release-iphonesimulator and their matching GeneratedModuleMaps dirs).
+          # The optional macOS x86_64 products extract into a separate
+          # ${DERIVED_DATA}_x86 sidecar. Keep that invariant if you change what
+          # any build job packs.
+          mkdir -p "$DERIVED_DATA"
+          tar -xzf "$RUNNER_TEMP/release-products/foundryswift-arm64-products/foundryswift-arm64-products.tgz" -C "$DERIVED_DATA"
+          tar -xzf "$RUNNER_TEMP/release-products/foundryswift-ios-products/foundryswift-ios-products.tgz" -C "$DERIVED_DATA"
+          tar -xzf "$RUNNER_TEMP/release-products/foundryswift-ios-simulator-products/foundryswift-ios-simulator-products.tgz" -C "$DERIVED_DATA"
+          x86_tarball="$RUNNER_TEMP/release-products/foundryswift-x86-products/foundryswift-x86-products.tgz"
+          if [[ -f "$x86_tarball" ]]; then
+            mkdir -p "${DERIVED_DATA}_x86"
+            tar -xzf "$x86_tarball" -C "${DERIVED_DATA}_x86"
+          fi
+
+      - name: Prepare release notes
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          printf '%s\n' "$RELEASE_NOTES" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Run release script
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FOUNDRY_SWIFT_SOURCE_REPO: ${{ github.repository }}
+          FOUNDRY_SWIFT_BINARY_REPO: cafecito-games/Foundry-Swift-Binary
+          FOUNDRY_SWIFT_BINARY_REPO_DIR: ${{ runner.temp }}/Foundry-Swift-Binary
+          FOUNDRY_SWIFT_OUTPUT_DIR: ${{ runner.temp }}/foundryswift-builds
+          FOUNDRY_SWIFT_DERIVED_DATA: ${{ runner.temp }}/foundryswift-builds/release/derived
+          FOUNDRY_SWIFT_CONFIGURATION: Release
+          FOUNDRY_SWIFT_SKIP_BUILD: 1
+          FOUNDRY_SWIFT_INCLUDE_MACOS_X86: ${{ inputs.include_macos_x86 && '1' || '' }}
+        run: |
+          scripts/release "${{ inputs.tag }}" "$RUNNER_TEMP/release-notes.md" "${{ needs.prepare.outputs.commit }}"

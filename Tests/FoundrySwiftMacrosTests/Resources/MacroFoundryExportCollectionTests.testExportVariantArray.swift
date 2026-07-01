@@ -1,0 +1,56 @@
+class SomeNode: Node {
+    var someArray: VariantArray = VariantArray()
+
+    static func _mproxy_set_someArray(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for someArray: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "someArray", object.someArray) {
+            object.someArray = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_someArray(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for someArray: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.someArray)
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: SomeNode.self) else {
+            return
+        }
+        let className = StringName("SomeNode")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \SomeNode.someArray,
+                name: "some_array",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_some_array",
+            setterName: "set_some_array",
+            getterFunction: SomeNode._mproxy_get_someArray,
+            setterFunction: SomeNode._mproxy_set_someArray
+        )
+    }
+}

@@ -1,0 +1,11 @@
+[configuration]
+
+entry_symbol = "swift_entry_point"
+compatibility_minimum = "0.1.0"
+
+
+[libraries]
+
+macos.arm64 = "res://bin/SimpleExtension"
+macos.debug = "res://bin/SimpleExtension"
+macos.release = "res://bin/SimpleExtension"

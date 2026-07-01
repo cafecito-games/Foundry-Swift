@@ -1,0 +1,56 @@
+class SomeNode: Node {
+    var greetings: TypedArray<Node3D> = []
+
+    static func _mproxy_set_greetings(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for greetings: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "greetings", object.greetings) {
+            object.greetings = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_greetings(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for greetings: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.greetings)
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: SomeNode.self) else {
+            return
+        }
+        let className = StringName("SomeNode")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \SomeNode.greetings,
+                name: "greetings",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_greetings",
+            setterName: "set_greetings",
+            getterFunction: SomeNode._mproxy_get_greetings,
+            setterFunction: SomeNode._mproxy_set_greetings
+        )
+    }
+}

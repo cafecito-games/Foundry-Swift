@@ -1,0 +1,852 @@
+//
+//  TypedDictionaryTests.swift
+//  FoundrySwift
+//
+//  Created by Elijah Semyonov on 24/04/2025.
+//
+
+@testable import FoundrySwift
+
+@FoundrySwiftTestSuite
+final class TypedDictionaryTests {
+
+    // MARK: - Initialization Tests
+
+    @FoundrySwiftTest
+    func testEmptyInitialization() {
+        let dictionary = TypedDictionary<Int, String>()
+
+        XCTAssertEqual(dictionary.size(), 0)
+        XCTAssertTrue(dictionary.isEmpty())
+    }
+
+    @FoundrySwiftTest
+    func testDictionaryLiteralInitialization() {
+        let dictionary: TypedDictionary<Int, String> = [1: "one", 2: "two", 3: "three"]
+
+        XCTAssertEqual(dictionary.size(), 3)
+        XCTAssertFalse(dictionary.isEmpty())
+        XCTAssertEqual(dictionary[1], "one")
+        XCTAssertEqual(dictionary[2], "two")
+        XCTAssertEqual(dictionary[3], "three")
+    }
+
+    @FoundrySwiftTest
+    func testSwiftDictionaryInitialization() {
+        let swiftDict: [String: Int] = ["a": 1, "b": 2, "c": 3]
+        let dictionary = TypedDictionary(swiftDict)
+
+        XCTAssertEqual(dictionary.size(), 3)
+        XCTAssertEqual(dictionary["a"], 1)
+        XCTAssertEqual(dictionary["b"], 2)
+        XCTAssertEqual(dictionary["c"], 3)
+    }
+
+    @FoundrySwiftTest
+    func testFromVariantDictionaryInitialization() {
+        let variantDict = VariantDictionary()
+        variantDict[Variant(1)] = Variant("one")
+        variantDict[Variant(2)] = Variant("two")
+
+        let typed = TypedDictionary<Int, String>(from: variantDict)
+
+        // Note: Foundry may or may not preserve data depending on type compatibility
+        XCTAssertTrue(typed.size() >= 0)
+    }
+
+    // MARK: - Subscript Tests
+
+    @FoundrySwiftTest
+    func testSubscriptGetSet() {
+        let dictionary = TypedDictionary<String, Int>()
+
+        dictionary["key1"] = 100
+        dictionary["key2"] = 200
+
+        XCTAssertEqual(dictionary["key1"], 100)
+        XCTAssertEqual(dictionary["key2"], 200)
+        XCTAssertNil(dictionary["nonexistent"])
+    }
+
+    @FoundrySwiftTest
+    func testSubscriptOverwrite() {
+        let dictionary: TypedDictionary<String, Int> = ["key": 1]
+
+        dictionary["key"] = 2
+
+        XCTAssertEqual(dictionary["key"], 2)
+        XCTAssertEqual(dictionary.size(), 1)
+    }
+
+    @FoundrySwiftTest
+    func testSubscriptNilErasesValue() {
+        let dictionary: TypedDictionary<String, Int> = ["key": 42]
+
+        XCTAssertEqual(dictionary["key"], 42)
+
+        dictionary["key"] = nil
+
+        XCTAssertNil(dictionary["key"])
+        XCTAssertTrue(dictionary.isEmpty())
+    }
+
+    @FoundrySwiftTest
+    func testSubscriptWithObjectValue() {
+        let dictionary = TypedDictionary<Int, RefCounted?>()
+
+        let obj = RefCounted()
+        dictionary[1] = obj
+
+        XCTAssertTrue(dictionary[1] === obj)
+
+        dictionary[1] = nil
+
+        XCTAssertNil(dictionary[1])
+        // Object-typed values allow nil, so it should still be in dictionary
+        XCTAssertTrue(dictionary.has(key: 1))
+    }
+
+    @FoundrySwiftTest
+    func testSubscriptWithVariantValue() {
+        let dictionary = TypedDictionary<String, Variant?>()
+
+        dictionary["int"] = Variant(42)
+        dictionary["string"] = Variant("hello")
+        dictionary["nil"] = nil
+
+        XCTAssertEqual(Int(dictionary["int"]!), 42)
+        XCTAssertEqual(String(dictionary["string"]!), "hello")
+        XCTAssertNil(dictionary["nil"])
+        XCTAssertTrue(dictionary.has(key: "nil"))
+    }
+
+    // MARK: - Size and Empty Tests
+
+    @FoundrySwiftTest
+    func testSizeIncreasesWithAdditions() {
+        let dictionary = TypedDictionary<Int, Int>()
+
+        XCTAssertEqual(dictionary.size(), 0)
+
+        dictionary[1] = 10
+        XCTAssertEqual(dictionary.size(), 1)
+
+        dictionary[2] = 20
+        XCTAssertEqual(dictionary.size(), 2)
+
+        dictionary[3] = 30
+        XCTAssertEqual(dictionary.size(), 3)
+    }
+
+    @FoundrySwiftTest
+    func testIsEmptyReflectsState() {
+        let dictionary = TypedDictionary<Int, Int>()
+
+        XCTAssertTrue(dictionary.isEmpty())
+
+        dictionary[1] = 1
+        XCTAssertFalse(dictionary.isEmpty())
+
+        _ = dictionary.erase(key: 1)
+        XCTAssertTrue(dictionary.isEmpty())
+    }
+
+    // MARK: - Clear Tests
+
+    @FoundrySwiftTest
+    func testClearRemovesAllEntries() {
+        let dictionary: TypedDictionary<Int, String> = [1: "a", 2: "b", 3: "c"]
+
+        XCTAssertEqual(dictionary.size(), 3)
+
+        dictionary.clear()
+
+        XCTAssertEqual(dictionary.size(), 0)
+        XCTAssertTrue(dictionary.isEmpty())
+        XCTAssertNil(dictionary[1])
+    }
+
+    // MARK: - Erase Tests
+
+    @FoundrySwiftTest
+    func testEraseRemovesExistingKey() {
+        let dictionary: TypedDictionary<String, Int> = ["key": 42]
+
+        let erased = dictionary.erase(key: "key")
+
+        XCTAssertTrue(erased)
+        XCTAssertNil(dictionary["key"])
+        XCTAssertTrue(dictionary.isEmpty())
+    }
+
+    @FoundrySwiftTest
+    func testEraseReturnsFalseForNonexistentKey() {
+        let dictionary = TypedDictionary<String, Int>()
+
+        let erased = dictionary.erase(key: "nonexistent")
+
+        XCTAssertFalse(erased)
+    }
+
+    // MARK: - Has Tests
+
+    @FoundrySwiftTest
+    func testHasReturnsTrueForExistingKey() {
+        let dictionary: TypedDictionary<Int, String> = [1: "one", 2: "two"]
+
+        XCTAssertTrue(dictionary.has(key: 1))
+        XCTAssertTrue(dictionary.has(key: 2))
+    }
+
+    @FoundrySwiftTest
+    func testHasReturnsFalseForNonexistentKey() {
+        let dictionary: TypedDictionary<Int, String> = [1: "one"]
+
+        XCTAssertFalse(dictionary.has(key: 999))
+    }
+
+    @FoundrySwiftTest
+    func testHasAllReturnsCorrectly() {
+        let dictionary: TypedDictionary<Int, String> = [1: "a", 2: "b", 3: "c"]
+
+        let presentKeys = VariantArray()
+        presentKeys.append(Variant(1))
+        presentKeys.append(Variant(2))
+
+        let mixedKeys = VariantArray()
+        mixedKeys.append(Variant(1))
+        mixedKeys.append(Variant(999))
+
+        XCTAssertTrue(dictionary.hasAll(keys: presentKeys))
+        XCTAssertFalse(dictionary.hasAll(keys: mixedKeys))
+    }
+
+    // MARK: - Keys and Values Tests
+
+    @FoundrySwiftTest
+    func testKeysReturnsAllKeys() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2, "c": 3]
+
+        let keys = dictionary.keys()
+
+        XCTAssertEqual(keys.count, 3)
+        XCTAssertTrue(keys.contains { $0 == "a" })
+        XCTAssertTrue(keys.contains { $0 == "b" })
+        XCTAssertTrue(keys.contains { $0 == "c" })
+    }
+
+    @FoundrySwiftTest
+    func testValuesReturnsAllValues() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2, "c": 3]
+
+        let values = dictionary.values()
+
+        XCTAssertEqual(values.count, 3)
+        XCTAssertTrue(values.contains { $0 == 1 })
+        XCTAssertTrue(values.contains { $0 == 2 })
+        XCTAssertTrue(values.contains { $0 == 3 })
+    }
+
+    // MARK: - Get with Default Tests
+
+    @FoundrySwiftTest
+    func testGetReturnsValueForExistingKey() {
+        let dictionary: TypedDictionary<String, Int> = ["key": 42]
+
+        let value = dictionary.get(key: "key", default: 0)
+
+        XCTAssertEqual(value, 42)
+    }
+
+    @FoundrySwiftTest
+    func testGetReturnsDefaultForNonexistentKey() {
+        let dictionary = TypedDictionary<String, Int>()
+
+        let value = dictionary.get(key: "nonexistent", default: 999)
+
+        XCTAssertEqual(value, 999)
+    }
+
+    // MARK: - GetOrAdd Tests
+
+    @FoundrySwiftTest
+    func testGetOrAddReturnsExistingValue() {
+        let dictionary: TypedDictionary<String, Int> = ["key": 42]
+
+        let value = dictionary.getOrAdd(key: "key", default: 0)
+
+        XCTAssertEqual(value, 42)
+        XCTAssertEqual(dictionary.size(), 1)
+    }
+
+    @FoundrySwiftTest
+    func testGetOrAddInsertsAndReturnsDefault() {
+        let dictionary = TypedDictionary<String, Int>()
+
+        let value = dictionary.getOrAdd(key: "newKey", default: 100)
+
+        XCTAssertEqual(value, 100)
+        XCTAssertEqual(dictionary["newKey"], 100)
+        XCTAssertEqual(dictionary.size(), 1)
+    }
+
+    // MARK: - Set Tests
+
+    @FoundrySwiftTest
+    func testSetAddsNewEntry() {
+        let dictionary = TypedDictionary<Int, String>()
+
+        let result = dictionary.set(key: 1, value: "one")
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(dictionary[1], "one")
+    }
+
+    @FoundrySwiftTest
+    func testSetUpdatesExistingEntry() {
+        let dictionary: TypedDictionary<Int, String> = [1: "uno"]
+
+        let result = dictionary.set(key: 1, value: "one")
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(dictionary[1], "one")
+        XCTAssertEqual(dictionary.size(), 1)
+    }
+
+    // MARK: - Duplicate Tests
+
+    @FoundrySwiftTest
+    func testDuplicateCreatesShallowCopy() {
+        let original: TypedDictionary<String, Int> = ["a": 1, "b": 2]
+
+        let copy = original.duplicate()
+
+        XCTAssertEqual(copy.size(), 2)
+        XCTAssertEqual(copy["a"], 1)
+        XCTAssertEqual(copy["b"], 2)
+
+        // Modify copy, original should be unchanged
+        copy["a"] = 100
+        XCTAssertEqual(original["a"], 1)
+        XCTAssertEqual(copy["a"], 100)
+    }
+
+    @FoundrySwiftTest
+    func testDuplicateDeepCopy() {
+        let original: TypedDictionary<String, Int> = ["x": 10, "y": 20]
+
+        let deepCopy = original.duplicate(deep: true)
+
+        XCTAssertEqual(deepCopy.size(), 2)
+        XCTAssertEqual(deepCopy["x"], 10)
+        XCTAssertEqual(deepCopy["y"], 20)
+    }
+
+    // MARK: - Iteration Tests
+
+    @FoundrySwiftTest
+    func testIterationVisitsAllEntries() {
+        let dictionary: TypedDictionary<Int, String> = [1: "one", 2: "two", 3: "three"]
+
+        var visitedKeys = Set<Int>()
+        var visitedValues = Set<String>()
+
+        for (key, value) in dictionary {
+            visitedKeys.insert(key)
+            visitedValues.insert(value)
+        }
+
+        XCTAssertEqual(visitedKeys.count, 3)
+        XCTAssertTrue(visitedKeys.contains(1))
+        XCTAssertTrue(visitedKeys.contains(2))
+        XCTAssertTrue(visitedKeys.contains(3))
+
+        XCTAssertEqual(visitedValues.count, 3)
+        XCTAssertTrue(visitedValues.contains("one"))
+        XCTAssertTrue(visitedValues.contains("two"))
+        XCTAssertTrue(visitedValues.contains("three"))
+    }
+
+    @FoundrySwiftTest
+    func testIterationOnEmptyDictionary() {
+        let dictionary = TypedDictionary<Int, Int>()
+
+        var count = 0
+        for _ in dictionary {
+            count += 1
+        }
+
+        XCTAssertEqual(count, 0)
+    }
+
+    // MARK: - Merge Tests
+
+    @FoundrySwiftTest
+    func testMergeWithoutOverwrite() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2]
+
+        let other = VariantDictionary()
+        other[Variant("b")] = Variant(200)
+        other[Variant("c")] = Variant(3)
+
+        dictionary.merge(dictionary: other, overwrite: false)
+
+        XCTAssertEqual(dictionary["a"], 1)
+        XCTAssertEqual(dictionary["b"], 2) // Not overwritten
+        XCTAssertEqual(dictionary["c"], 3) // Added
+    }
+
+    @FoundrySwiftTest
+    func testMergeWithOverwrite() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2]
+
+        let other = VariantDictionary()
+        other[Variant("b")] = Variant(200)
+        other[Variant("c")] = Variant(3)
+
+        dictionary.merge(dictionary: other, overwrite: true)
+
+        XCTAssertEqual(dictionary["a"], 1)
+        XCTAssertEqual(dictionary["b"], 200) // Overwritten
+        XCTAssertEqual(dictionary["c"], 3)
+    }
+
+    @FoundrySwiftTest
+    func testMergedReturnsNewDictionary() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1]
+
+        let other = VariantDictionary()
+        other[Variant("b")] = Variant(2)
+
+        let merged = dictionary.merged(dictionary: other)
+
+        // Original unchanged
+        XCTAssertEqual(dictionary.size(), 1)
+
+        // Merged has both
+        XCTAssertEqual(merged.size(), 2)
+    }
+
+    // MARK: - Sort Tests
+
+    @FoundrySwiftTest
+    func testSortOrdersKeys() {
+        let dictionary = TypedDictionary<Int, String>()
+        dictionary[3] = "three"
+        dictionary[1] = "one"
+        dictionary[2] = "two"
+
+        dictionary.sort()
+
+        let keys = dictionary.keys()
+        XCTAssertEqual(keys[0], 1)
+        XCTAssertEqual(keys[1], 2)
+        XCTAssertEqual(keys[2], 3)
+    }
+
+    // MARK: - ReadOnly Tests
+
+    @FoundrySwiftTest
+    func testIsReadOnlyInitiallyFalse() {
+        let dictionary = TypedDictionary<Int, Int>()
+
+        XCTAssertFalse(dictionary.isReadOnly())
+    }
+
+    @FoundrySwiftTest
+    func testMakeReadOnlySetsFlag() {
+        let dictionary: TypedDictionary<Int, Int> = [1: 1]
+
+        dictionary.makeReadOnly()
+
+        XCTAssertTrue(dictionary.isReadOnly())
+    }
+
+    // MARK: - Type Comparison Tests
+
+    @FoundrySwiftTest
+    func testIsSameTypedWithIdenticalTypes() {
+        let dict1 = TypedDictionary<Int, String>()
+        let dict2 = TypedDictionary<Int, String>()
+
+        XCTAssertTrue(dict1.isSameTyped(dictionary: dict2.dictionary))
+    }
+
+    @FoundrySwiftTest
+    func testIsSameTypedKeyWithIdenticalKeyTypes() {
+        let dict1 = TypedDictionary<Int, String>()
+        let dict2 = TypedDictionary<Int, Float>()
+
+        XCTAssertTrue(dict1.isSameTypedKey(dictionary: dict2.dictionary))
+    }
+
+    @FoundrySwiftTest
+    func testIsSameTypedValueWithIdenticalValueTypes() {
+        let dict1 = TypedDictionary<Int, String>()
+        let dict2 = TypedDictionary<Float, String>()
+
+        XCTAssertTrue(dict1.isSameTypedValue(dictionary: dict2.dictionary))
+    }
+
+    // MARK: - Variant Conversion Tests
+
+    @FoundrySwiftTest
+    func testToVariantAndBack() {
+        let original: TypedDictionary<String, Int> = ["key": 42]
+
+        let variant: Variant = original.toVariant()
+        let restored = TypedDictionary<String, Int>(variant)
+
+        XCTAssertNotNil(restored)
+        XCTAssertEqual(restored?["key"], 42)
+    }
+
+    @FoundrySwiftTest
+    func testToFastVariantAndBack() {
+        let original: TypedDictionary<Int, Int> = [1: 100, 2: 200]
+
+        let fastVariant: FastVariant = original.toFastVariant()
+        let restored = TypedDictionary<Int, Int>(fastVariant)
+
+        XCTAssertNotNil(restored)
+        XCTAssertEqual(restored?[1], 100)
+        XCTAssertEqual(restored?[2], 200)
+    }
+
+    // MARK: - FindKey Tests
+
+    @FoundrySwiftTest
+    func testFindKeyReturnsCorrectKey() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2, "c": 3]
+
+        let foundKey = dictionary.findKey(value: Variant(2))
+
+        XCTAssertNotNil(foundKey)
+        XCTAssertEqual(String(foundKey!), "b")
+    }
+
+    @FoundrySwiftTest
+    func testFindKeyReturnsNilForNonexistentValue() {
+        let dictionary: TypedDictionary<String, Int> = ["a": 1, "b": 2]
+
+        let foundKey = dictionary.findKey(value: Variant(999))
+
+        XCTAssertNil(foundKey)
+    }
+
+    // MARK: - RecursiveEqual Tests
+
+    @FoundrySwiftTest
+    func testRecursiveEqualWithEqualDictionaries() {
+        let dict1: TypedDictionary<Int, Int> = [1: 10, 2: 20]
+        let dict2: TypedDictionary<Int, Int> = [1: 10, 2: 20]
+
+        XCTAssertTrue(dict1.recursiveEqual(dictionary: dict2.dictionary, recursionCount: 1))
+    }
+
+    @FoundrySwiftTest
+    func testRecursiveEqualWithDifferentDictionaries() {
+        let dict1: TypedDictionary<Int, Int> = [1: 10, 2: 20]
+        let dict2: TypedDictionary<Int, Int> = [1: 10, 2: 99]
+
+        XCTAssertFalse(dict1.recursiveEqual(dictionary: dict2.dictionary, recursionCount: 1))
+    }
+
+    // MARK: - Various Key/Value Type Combinations
+
+    @FoundrySwiftTest
+    func testIntToIntDictionary() {
+        let dictionary: TypedDictionary<Int, Int> = [1: 100, 2: 200, 3: 300]
+
+        XCTAssertEqual(dictionary[1], 100)
+        XCTAssertEqual(dictionary[2], 200)
+        XCTAssertEqual(dictionary[3], 300)
+    }
+
+    @FoundrySwiftTest
+    func testStringToStringDictionary() {
+        let dictionary: TypedDictionary<String, String> = ["hello": "world", "foo": "bar"]
+
+        XCTAssertEqual(dictionary["hello"], "world")
+        XCTAssertEqual(dictionary["foo"], "bar")
+    }
+
+    @FoundrySwiftTest
+    func testFloatKeyDictionary() {
+        let dictionary = TypedDictionary<Float, String>()
+
+        dictionary[1.5] = "one and a half"
+        dictionary[2.5] = "two and a half"
+
+        XCTAssertEqual(dictionary[1.5], "one and a half")
+        XCTAssertEqual(dictionary[2.5], "two and a half")
+    }
+
+    @FoundrySwiftTest
+    func testVector2KeyDictionary() {
+        let dictionary = TypedDictionary<Vector2, Int>()
+
+        let key1 = Vector2(x: 1, y: 2)
+        let key2 = Vector2(x: 3, y: 4)
+
+        dictionary[key1] = 10
+        dictionary[key2] = 20
+
+        XCTAssertEqual(dictionary[key1], 10)
+        XCTAssertEqual(dictionary[key2], 20)
+    }
+
+    @FoundrySwiftTest
+    func testVector3ValueDictionary() {
+        let dictionary = TypedDictionary<String, Vector3>()
+
+        let value1 = Vector3(x: 1, y: 2, z: 3)
+        let value2 = Vector3(x: 4, y: 5, z: 6)
+
+        dictionary["pos1"] = value1
+        dictionary["pos2"] = value2
+
+        XCTAssertEqual(dictionary["pos1"], value1)
+        XCTAssertEqual(dictionary["pos2"], value2)
+    }
+
+    @FoundrySwiftTest
+    func testColorValueDictionary() {
+        let dictionary = TypedDictionary<String, Color>()
+
+        dictionary["red"] = Color(r: 1, g: 0, b: 0, a: 1)
+        dictionary["green"] = Color(r: 0, g: 1, b: 0, a: 1)
+        dictionary["blue"] = Color(r: 0, g: 0, b: 1, a: 1)
+
+        XCTAssertEqual(dictionary["red"]?.red, 1)
+        XCTAssertEqual(dictionary["green"]?.green, 1)
+        XCTAssertEqual(dictionary["blue"]?.blue, 1)
+    }
+
+    // MARK: - Debug Description Test
+
+    @FoundrySwiftTest
+    func testDebugDescriptionNotEmpty() {
+        let dictionary: TypedDictionary<Int, String> = [1: "one"]
+
+        let description = dictionary.debugDescription
+
+        XCTAssertFalse(description.isEmpty)
+    }
+
+    // MARK: - Assign Tests
+
+    @FoundrySwiftTest
+    func testAssignReplacesContent() {
+        let dictionary: TypedDictionary<Int, Int> = [1: 1, 2: 2]
+
+        let newContent = VariantDictionary()
+        newContent[Variant(10)] = Variant(100)
+        newContent[Variant(20)] = Variant(200)
+
+        dictionary.assign(dictionary: newContent)
+
+        // After assign, dictionary should have new content
+        XCTAssertEqual(dictionary[10], 100)
+        XCTAssertEqual(dictionary[20], 200)
+    }
+
+    // MARK: - Edge Cases
+
+    @FoundrySwiftTest
+    func testEmptyStringKey() {
+        let dictionary = TypedDictionary<String, Int>()
+
+        dictionary[""] = 42
+
+        XCTAssertEqual(dictionary[""], 42)
+        XCTAssertTrue(dictionary.has(key: ""))
+    }
+
+    @FoundrySwiftTest
+    func testZeroKey() {
+        let dictionary = TypedDictionary<Int, String>()
+
+        dictionary[0] = "zero"
+
+        XCTAssertEqual(dictionary[0], "zero")
+        XCTAssertTrue(dictionary.has(key: 0))
+    }
+
+    @FoundrySwiftTest
+    func testNegativeKey() {
+        let dictionary = TypedDictionary<Int, String>()
+
+        dictionary[-1] = "negative one"
+        dictionary[-100] = "negative hundred"
+
+        XCTAssertEqual(dictionary[-1], "negative one")
+        XCTAssertEqual(dictionary[-100], "negative hundred")
+    }
+
+    @FoundrySwiftTest
+    func testLargeNumberOfEntries() {
+        let dictionary = TypedDictionary<Int, Int>()
+
+        for i in 0..<1000 {
+            dictionary[i] = i * 2
+        }
+
+        XCTAssertEqual(dictionary.size(), 1000)
+        XCTAssertEqual(dictionary[0], 0)
+        XCTAssertEqual(dictionary[500], 1000)
+        XCTAssertEqual(dictionary[999], 1998)
+    }
+
+    // MARK: - Type Mismatch Tests (Foundry prints errors, operations ignored)
+
+    @FoundrySwiftTest
+    func testTypeMismatchKeyViaUnderlyingDictionary() {
+        // Create typed dictionary expecting Int keys
+        let typed = TypedDictionary<Int, String>()
+        typed[1] = "one"
+
+        // Try to insert with wrong key type via underlying VariantDictionary
+        // Foundry will print an error and ignore the operation
+        typed.dictionary[Variant("wrong_key_type")] = Variant("value")
+
+        // Dictionary should remain unchanged (only the valid entry)
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], "one")
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchValueViaUnderlyingDictionary() {
+        // Create typed dictionary expecting String values
+        let typed = TypedDictionary<Int, String>()
+        typed[1] = "one"
+
+        // Try to insert with wrong value type via underlying VariantDictionary
+        // Foundry will print an error and ignore the operation
+        typed.dictionary[Variant(2)] = Variant(12345) // Int instead of String
+
+        // Dictionary should remain unchanged (only the valid entry)
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], "one")
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchBothKeyAndValueViaUnderlyingDictionary() {
+        // Create typed dictionary expecting Int keys and String values
+        let typed = TypedDictionary<Int, String>()
+        typed[1] = "one"
+
+        // Try to insert with both wrong key and value types
+        // Foundry will print an error and ignore the operation
+        typed.dictionary[Variant("wrong")] = Variant(Vector2(x: 1, y: 2))
+
+        // Dictionary should remain unchanged
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], "one")
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchMergeWithIncompatibleTypes() {
+        // Create typed dictionary
+        let typed = TypedDictionary<Int, Int>()
+        typed[1] = 100
+
+        // Create untyped dictionary with incompatible types
+        let untyped = VariantDictionary()
+        untyped[Variant("string_key")] = Variant("string_value")
+        untyped[Variant(2)] = Variant(200) // This one is compatible
+
+        // Merge - Foundry prints error and the entire merge operation fails
+        // when incompatible types are encountered
+        typed.merge(dictionary: untyped, overwrite: false)
+
+        // Dictionary remains unchanged due to type mismatch in source
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], 100)
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchAssignWithIncompatibleTypes() {
+        // Create typed dictionary
+        let typed = TypedDictionary<Int, String>()
+        typed[1] = "original"
+
+        // Create untyped dictionary with incompatible types
+        let untyped = VariantDictionary()
+        untyped[Variant("wrong")] = Variant(123) // Both key and value wrong
+        untyped[Variant(2)] = Variant("correct") // This one is correct
+
+        // Assign - Foundry prints error when encountering incompatible types
+        // but the operation keeps the original content unchanged
+        typed.assign(dictionary: untyped)
+
+        // Original dictionary content preserved due to failed assignment
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], "original")
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchFromVariantDictionaryWithWrongTypes() {
+        // Create untyped dictionary with mixed types
+        let untyped = VariantDictionary()
+        untyped[Variant(1)] = Variant("one")
+        untyped[Variant("two")] = Variant(2) // Wrong key type
+        untyped[Variant(3)] = Variant(Vector2()) // Wrong value type
+
+        // Create typed dictionary from it - Foundry fails to convert when types don't match
+        // and returns an empty dictionary
+        let typed = TypedDictionary<Int, String>(from: untyped)
+
+        // Result is empty because source had incompatible types
+        XCTAssertEqual(typed.size(), 0)
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchUpdateExistingKeyWithWrongValueType() {
+        // Create typed dictionary
+        let typed = TypedDictionary<String, Int>()
+        typed["key"] = 42
+
+        // Try to update with wrong value type via underlying dictionary
+        // Foundry will print an error and ignore the operation
+        typed.dictionary[Variant("key")] = Variant("not_an_int")
+
+        // Value should remain unchanged
+        XCTAssertEqual(typed["key"], 42)
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchObjectTypeDictionaryWithWrongObjectType() {
+        // Create typed dictionary expecting RefCounted
+        let typed = TypedDictionary<Int, RefCounted?>()
+        let refCounted = RefCounted()
+        typed[1] = refCounted
+
+        // Try to insert a Node (which is not RefCounted) via underlying dictionary
+        // This should fail because Node is not compatible with RefCounted
+        let node = Node()
+        defer { freeOrphanNode(node) }
+        typed.dictionary[Variant(2)] = Variant(node)
+
+        // Dictionary should only have the valid entry
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertTrue(typed[1] === refCounted)
+    }
+
+    @FoundrySwiftTest
+    func testTypeMismatchMultipleInvalidInserts() {
+        // Create typed dictionary
+        let typed = TypedDictionary<Int, Float>()
+        typed[1] = 1.5
+
+        // Try multiple invalid inserts
+        typed.dictionary[Variant("a")] = Variant(1.0) // Wrong key
+        typed.dictionary[Variant("b")] = Variant(2.0) // Wrong key
+        typed.dictionary[Variant(2)] = Variant("wrong") // Wrong value
+        typed.dictionary[Variant(3)] = Variant(Vector3()) // Wrong value
+
+        // Dictionary should remain with only the original entry
+        XCTAssertEqual(typed.size(), 1)
+        XCTAssertEqual(typed[1], 1.5)
+    }
+}

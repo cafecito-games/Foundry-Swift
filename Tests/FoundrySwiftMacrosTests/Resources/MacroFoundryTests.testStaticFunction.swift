@@ -1,0 +1,44 @@
+class Hi: Node {
+    static func get_some() -> Int64 { 10 }
+
+    static func _mproxy_get_some(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        return FoundrySwift._wrapCallableResult(self.get_some())
+
+    }
+    static func _pproxy_get_some(        
+    _ pInstance: UnsafeMutableRawPointer?,
+    _ rargs: RawArguments,
+    _ returnValue: UnsafeMutableRawPointer?) {
+
+        RawReturnWriter.writeResult(returnValue, self.get_some()) 
+
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        return _initializeClass
+    }
+
+    private static let _initializeClass: Void = {
+        let className = StringName("Hi")
+        assert(ClassDB.classExists(class: className))
+        FoundrySwift._registerMethod(
+            className: className,
+            name: "get_some",
+            flags: .static,
+            returnValue: FoundrySwift._returnValuePropInfo(Int64.self),
+            arguments: [
+
+            ],
+            function: Hi._mproxy_get_some,
+            ptrFunction: { udata, classInstance, argsPtr, retValue in
+                guard let argsPtr else {
+                    Foundry.print("Foundry is not passing the arguments");
+                    return
+                }
+                Hi._pproxy_get_some (classInstance, RawArguments(args: argsPtr), retValue)
+            }
+
+        )
+    }()
+}

@@ -138,7 +138,7 @@ Release scripts, binary manifest scripts, addon packaging scripts, and README in
 The addon packaging model mirrors SwiftGodot's embed model, but with Foundry names:
 
 - A no-op extension named `FoundrySwiftEmbed`.
-- A `.foundryextension` file with `compatibility_minimum = 0.1.0`.
+- A `.foundryextension` file with `compatibility_minimum = "0.1.0"`.
 - A dependency block that causes Apple exports to embed `FoundrySwift.framework` or `FoundrySwift.xcframework` once.
 
 Release assets that name the Swift module, framework, xcframework, or addon use `FoundrySwift`. Release assets that name the GitHub repository archive use `Foundry-Swift`.
@@ -175,7 +175,7 @@ The implementation plan should use these verification gates:
 1. `swift build` compiles the renamed package and generated Foundry bindings.
 2. A generator smoke test reads the dumped Foundry API and emits files without `GDExtension` or `SwiftGodot` public symbols.
 3. Macro tests verify `@Foundry`, `@Callable`, `@Export`, and `#initFoundryExtension`.
-4. Extension resource checks verify `.foundryextension`, `compatibility_minimum = 0.1.0`, Foundry library target paths, and absence of stale `.gdextension` project resources.
+4. Extension resource checks verify `.foundryextension`, `compatibility_minimum = "0.1.0"`, Foundry library target paths, and absence of stale `.gdextension` project resources.
 5. Runtime/editor tests converted from SwiftGodot run under Foundry where local infrastructure supports them.
 6. Packaging checks verify Foundry-named release assets, addon staging, binary manifest metadata, and embed extension resources.
 7. A repository-wide naming audit reports remaining `Godot`, `GDExtension`, `gdextension`, `SwiftGodot`, and `.gd` terms and classifies allowed leftovers.

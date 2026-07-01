@@ -1,0 +1,50 @@
+//
+//  ValidatePropertyTests.swift
+//  FoundrySwift
+//
+//  Created by Miguel de Icaza on 3/29/25.
+//
+
+
+
+@testable import FoundrySwift
+
+@Foundry
+private class TestProp: Node {
+    @Export
+    var changeThisVariable: Int = 1
+
+    override func _validateProperty(_ prop: inout PropInfo) -> Bool {
+        if prop.propertyName == "change_this_variable" {
+            prop.usage.insert(.group)
+            return true
+        }
+        return false
+    }
+}
+
+@FoundrySwiftTestSuite
+final class ValidatePropertyTests {
+    public static var registeredTypes: [Object.Type] {
+        return [TestProp.self]
+    }
+
+    @FoundrySwiftTest
+    public func testThing() {
+        var found = false
+        let node = TestProp()
+        defer { freeOrphanNode(node) }
+        for prop in node.getPropertyList() {
+            //print("PROP: \(prop)")
+            guard let nameV = prop["name"] else { continue }
+            guard let name = String(nameV) else { continue }
+            guard let flagsV = prop["usage"], let iflags = Int(flagsV) else { continue }
+            let flags = PropertyUsageFlags(rawValue: iflags)
+
+            if name == "change_this_variable", flags.contains(.group) {
+                found = true
+            }
+        }
+        XCTAssertTrue(found, "Should have found a property named hideThisVariable with the usage set to 'readOnly'")
+    }
+}

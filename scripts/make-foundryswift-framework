@@ -1,0 +1,370 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/make-foundryswift-framework ROOT OUTPUT_DIR
+
+ROOT       DerivedData directory where Xcode generated the build products.
+OUTPUT_DIR Directory to write the resulting xcframeworks into.
+
+Produces:
+  $OUTPUT_DIR/FoundrySwift.xcframework
+  $OUTPUT_DIR/FoundrySwiftEmbed.xcframework
+
+FoundrySwift is a single self-contained module: all runtime types are compiled
+directly into FoundrySwift. FoundrySwiftEmbed is a thin no-op FoundryExtension shim
+that links FoundrySwift; the Foundry addon zip ships it as the registered
+FoundryExtension that owns embedding FoundrySwift.framework into exported apps.
+EOF
+}
+
+if [[ $# -ne 2 ]]; then
+    usage
+    exit 1
+fi
+
+derived_data=${1%/}
+output_dir=${2%/}
+configuration=${FOUNDRY_SWIFT_CONFIGURATION:-Release}
+
+mkdir -p "$output_dir"
+
+echo "writing xcframeworks under $output_dir"
+
+bd_mac="$derived_data/Build/Products/$configuration"
+bd_mac_x86="${derived_data}_x86/Build/Products/$configuration"
+bd_ios="$derived_data/Build/Products/$configuration-iphoneos"
+bd_ios_sim="$derived_data/Build/Products/$configuration-iphonesimulator"
+stage_root=$(mktemp -d)
+
+cleanup() {
+    rm -rf "$stage_root"
+}
+trap cleanup EXIT
+
+require_path() {
+    if [[ ! -e "$1" ]]; then
+        echo "Missing required release artifact: $1"
+        exit 1
+    fi
+}
+
+generated_metadata_file() {
+    local metadata_root=$1
+    local platform_suffix=$2
+    local file_name=$3
+    local intermediates="$metadata_root/Build/Intermediates.noindex"
+    local candidate
+
+    if [[ -n "$platform_suffix" ]]; then
+        candidate="$intermediates/GeneratedModuleMaps-$platform_suffix/$file_name"
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    fi
+
+    candidate="$intermediates/GeneratedModuleMaps/$file_name"
+    if [[ -f "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return
+    fi
+
+    candidate=$(find "$intermediates" -type f -path "*/GeneratedModuleMaps*/$file_name" 2>/dev/null | head -1)
+    if [[ -n "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return
+    fi
+
+    echo "Missing Xcode-generated metadata file: $file_name under $intermediates"
+    exit 1
+}
+
+is_versioned_framework() {
+    local framework=$1
+    [[ -d "$framework/Versions" || -L "$framework/Versions" ]]
+}
+
+framework_headers_dir() {
+    local framework=$1
+
+    if is_versioned_framework "$framework"; then
+        printf '%s\n' "$framework/Versions/Current/Headers"
+    else
+        printf '%s\n' "$framework/Headers"
+    fi
+}
+
+framework_modules_dir() {
+    local framework=$1
+
+    if is_versioned_framework "$framework"; then
+        printf '%s\n' "$framework/Versions/Current/Modules"
+    else
+        printf '%s\n' "$framework/Modules"
+    fi
+}
+
+framework_binary_path() {
+    local framework=$1
+    local module=$2
+
+    if is_versioned_framework "$framework"; then
+        printf '%s\n' "$framework/Versions/Current/$module"
+    else
+        printf '%s\n' "$framework/$module"
+    fi
+}
+
+ensure_framework_metadata_dirs() {
+    local framework=$1
+    local headers_dir
+    local modules_dir
+
+    headers_dir=$(framework_headers_dir "$framework")
+    modules_dir=$(framework_modules_dir "$framework")
+
+    mkdir -p "$headers_dir" "$modules_dir"
+    if is_versioned_framework "$framework"; then
+        ln -sfn Versions/Current/Headers "$framework/Headers"
+        ln -sfn Versions/Current/Modules "$framework/Modules"
+    fi
+}
+
+stage_framework_copy() {
+    local source_framework=$1
+    local staged_framework=$2
+    local stage_dir
+
+    require_path "$source_framework"
+    stage_dir=$(dirname "$staged_framework")
+    mkdir -p "$stage_dir"
+    rsync -a "$source_framework" "$stage_dir/"
+}
+
+merge_framework_binaries() {
+    local module=$1
+    local staged_framework=$2
+    local secondary_framework=$3
+    local staged_binary
+    local secondary_binary
+    local merged_binary
+
+    staged_binary=$(framework_binary_path "$staged_framework" "$module")
+    secondary_binary=$(framework_binary_path "$secondary_framework" "$module")
+    require_path "$staged_binary"
+    require_path "$secondary_binary"
+
+    merged_binary=$(mktemp "$stage_root/$module.XXXXXX")
+    lipo -create "$staged_binary" "$secondary_binary" -output "$merged_binary"
+    chmod +x "$merged_binary"
+    mv "$merged_binary" "$staged_binary"
+}
+
+append_swift_header_branch() {
+    local header=$1
+
+    awk '
+        {
+            lines[NR] = $0
+            if (!start && $0 ~ /^#elif defined\(__[A-Za-z0-9_]+__\) && __[A-Za-z0-9_]+__$/) {
+                start = NR
+            }
+            if ($0 == "#else") {
+                last_else = NR
+            }
+        }
+        END {
+            if (!start || !last_else || last_else < start) {
+                exit 1
+            }
+            for (i = start; i < last_else; i++) {
+                print lines[i]
+            }
+        }
+    ' "$header"
+}
+
+append_swift_header_suffix() {
+    local header=$1
+
+    awk '
+        {
+            lines[NR] = $0
+            if ($0 == "#else") {
+                last_else = NR
+            }
+        }
+        END {
+            if (!last_else) {
+                exit 1
+            }
+            for (i = last_else; i <= NR; i++) {
+                print lines[i]
+            }
+        }
+    ' "$header"
+}
+
+merge_swift_headers() {
+    local output_file=$1
+    shift
+    local first_header=$1
+    local header
+
+    require_path "$first_header"
+    if [[ $# -eq 1 ]]; then
+        cp "$first_header" "$output_file"
+        return
+    fi
+
+    {
+        awk 'NR == 1 { print; exit }' "$first_header"
+        for header in "$@"; do
+            require_path "$header"
+            append_swift_header_branch "$header"
+        done
+        append_swift_header_suffix "$first_header"
+    } > "$output_file"
+}
+
+# Xcode generates a plain `module <Name>` modulemap for Swift package
+# frameworks. Inside a `.framework` bundle that is wrong: a plain module
+# resolves `header` paths relative to the modulemap's own `Modules/` directory,
+# but the generated `<Name>-Swift.h` lives in the sibling `Headers/`. The
+# qualifier must be `framework module` so the header resolves against
+# `Headers/`. The macOS dependency scanner forces the Clang module to build and
+# surfaces this; iOS happens to resolve through the `.swiftinterface` instead.
+install_framework_modulemap() {
+    local source_modulemap=$1
+    local destination_modulemap=$2
+
+    sed 's/^module \([A-Za-z_][A-Za-z0-9_.]*\)/framework module \1/' \
+        "$source_modulemap" > "$destination_modulemap"
+}
+
+stage_module_metadata() {
+    local module=$1
+    local framework=$2
+    local product_dir=$3
+    local metadata_root=$4
+    local platform_suffix=$5
+    local secondary_product_dir=${6:-}
+    local secondary_metadata_root=${7:-}
+    local secondary_platform_suffix=${8:-}
+    local headers_dir
+    local modules_dir
+    local modulemap
+    local swift_header
+    local swift_headers
+
+    require_path "$product_dir/$module.swiftmodule"
+    ensure_framework_metadata_dirs "$framework"
+
+    headers_dir=$(framework_headers_dir "$framework")
+    modules_dir=$(framework_modules_dir "$framework")
+    modulemap=$(generated_metadata_file "$metadata_root" "$platform_suffix" "$module.modulemap")
+    swift_header=$(generated_metadata_file "$metadata_root" "$platform_suffix" "$module-Swift.h")
+    swift_headers=("$swift_header")
+
+    if [[ -n "$secondary_product_dir" ]]; then
+        require_path "$secondary_product_dir/$module.swiftmodule"
+        swift_headers+=("$(generated_metadata_file "$secondary_metadata_root" "$secondary_platform_suffix" "$module-Swift.h")")
+    fi
+
+    install_framework_modulemap "$modulemap" "$modules_dir/module.modulemap"
+    merge_swift_headers "$headers_dir/$module-Swift.h" "${swift_headers[@]}"
+    rsync -a "$product_dir/$module.swiftmodule" "$modules_dir/"
+
+    if [[ -n "$secondary_product_dir" ]]; then
+        rsync -a "$secondary_product_dir/$module.swiftmodule" "$modules_dir/"
+    fi
+}
+
+stage_macos_framework() {
+    local module=$1
+    local staged_framework="$stage_root/macos/$module.framework"
+    local primary_framework="$bd_mac/PackageFrameworks/$module.framework"
+    local secondary_framework="$bd_mac_x86/PackageFrameworks/$module.framework"
+
+    stage_framework_copy "$primary_framework" "$staged_framework"
+
+    if [[ -n "$macos_x86_present" ]]; then
+        merge_framework_binaries "$module" "$staged_framework" "$secondary_framework"
+    fi
+
+    printf '%s\n' "$staged_framework"
+}
+
+stage_ios_framework() {
+    local module=$1
+    local staged_framework="$stage_root/iphoneos/$module.framework"
+    local primary_framework="$bd_ios/PackageFrameworks/$module.framework"
+
+    stage_framework_copy "$primary_framework" "$staged_framework"
+    printf '%s\n' "$staged_framework"
+}
+
+stage_ios_simulator_framework() {
+    local module=$1
+    local staged_framework="$stage_root/iphonesimulator/$module.framework"
+    local primary_framework="$bd_ios_sim/PackageFrameworks/$module.framework"
+
+    stage_framework_copy "$primary_framework" "$staged_framework"
+    printf '%s\n' "$staged_framework"
+}
+
+make_xcframework() {
+    local module=$1
+    # When "swift", stage the SwiftPM-generated module map and -Swift.h so
+    # consumers can `import` the framework. C-only targets like
+    # FoundrySwiftEmbed don't have a -Swift.h, and nothing imports them from
+    # SwiftPM, so the module-metadata dance is skipped.
+    local kind=${2:-swift}
+    local output="$output_dir/$module.xcframework"
+    local mac_framework
+    local ios_framework
+    local ios_sim_framework
+
+    echo "generating $output"
+    rm -rf "$output"
+
+    require_path "$bd_mac/PackageFrameworks/$module.framework"
+    require_path "$bd_ios/PackageFrameworks/$module.framework"
+    require_path "$bd_ios_sim/PackageFrameworks/$module.framework"
+
+    mac_framework=$(stage_macos_framework "$module")
+    ios_framework=$(stage_ios_framework "$module")
+    ios_sim_framework=$(stage_ios_simulator_framework "$module")
+
+    if [[ "$kind" == "swift" ]]; then
+        if [[ -n "$macos_x86_present" ]]; then
+            stage_module_metadata "$module" "$mac_framework" "$bd_mac" "$derived_data" "" "$bd_mac_x86" "${derived_data}_x86" ""
+        else
+            stage_module_metadata "$module" "$mac_framework" "$bd_mac" "$derived_data" ""
+        fi
+
+        stage_module_metadata "$module" "$ios_framework" "$bd_ios" "$derived_data" "iphoneos"
+        stage_module_metadata "$module" "$ios_sim_framework" "$bd_ios_sim" "$derived_data" "iphonesimulator"
+    fi
+
+    xcodebuild -quiet -create-xcframework \
+        -framework "$mac_framework" \
+        -framework "$ios_framework" \
+        -framework "$ios_sim_framework" \
+        -output "$output"
+}
+
+# The macOS x86_64 slice is optional. When its frameworks are present they are
+# merged into the macOS slice; otherwise the macOS slice stays arm64-only.
+macos_x86_present=
+if [[ -d "$bd_mac_x86/PackageFrameworks/FoundrySwift.framework" ]]; then
+    macos_x86_present=1
+fi
+
+# stage_module_metadata "FoundrySwift" — kept as an explicit grep target so the
+# regression test that asserts FoundrySwift-specific metadata staging still
+# matches.
+make_xcframework "FoundrySwift" swift
+make_xcframework "FoundrySwiftEmbed" c

@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol = "swift_entry_point"
+compatibility_minimum = "0.1.0"
+
+
+[libraries]
+macos.arm64 = "res://bin/ManualExtension"
+macos.debug = "res://bin/ManualExtension"
+macos.release = "res://bin/ManualExtension"

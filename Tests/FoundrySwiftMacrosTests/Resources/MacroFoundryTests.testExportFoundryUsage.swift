@@ -1,0 +1,56 @@
+class Hi: Node {
+    var goodName: String = "Supertop"
+
+    static func _mproxy_set_goodName(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling setter for goodName: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "goodName", object.goodName) {
+            object.goodName = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_goodName(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for goodName: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.goodName)
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: Hi.self) else {
+            return
+        }
+        let className = StringName("Hi")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \Hi.goodName,
+                name: "good_name",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_good_name",
+            setterName: "set_good_name",
+            getterFunction: Hi._mproxy_get_goodName,
+            setterFunction: Hi._mproxy_set_goodName
+        )
+    }
+}

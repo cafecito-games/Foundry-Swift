@@ -1,0 +1,189 @@
+class MultiplayerNode: Node {
+
+    func syncPosition(_ position: Vector3) {
+    }
+
+    static func _mproxy_syncPosition(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        do { // safe arguments access scope
+            guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+                FoundrySwift.Foundry.printErr("Error calling `syncPosition`: failed to unwrap instance \(String(describing: pInstance))")
+                return nil
+            }
+            let arg0 = try arguments.argument(ofType: Vector3.self, at: 0)
+            return FoundrySwift._wrapCallableResult(object.syncPosition(arg0))
+
+        } catch {
+            FoundrySwift.Foundry.printErr("Error calling `syncPosition`: \(error.description)")
+        }
+
+        return nil
+    }
+    static func _pproxy_syncPosition(        
+    _ pInstance: UnsafeMutableRawPointer?,
+    _ rargs: FoundrySwift.RawArguments,
+    _ returnValue: UnsafeMutableRawPointer?) {
+        do { // safe arguments access scope
+                    guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+                FoundrySwift.Foundry.printErr("Error calling `syncPosition`: failed to unwrap instance \(String(describing: pInstance))")
+                return
+            }
+        let arg0: Vector3 = try rargs.fetchArgument(at: 0)
+            FoundrySwift.RawReturnWriter.writeResult(returnValue, object.syncPosition(arg0)) 
+
+        } catch {
+            FoundrySwift.Foundry.printErr("Error calling `syncPosition`: \(String(describing: error))")                    
+        }
+    }
+
+
+    func defaultRpc() {
+    }
+
+    static func _mproxy_defaultRpc(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling `defaultRpc`: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+        return FoundrySwift._wrapCallableResult(object.defaultRpc())
+
+    }
+    static func _pproxy_defaultRpc(        
+    _ pInstance: UnsafeMutableRawPointer?,
+    _ rargs: FoundrySwift.RawArguments,
+    _ returnValue: UnsafeMutableRawPointer?) {
+        guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling `defaultRpc`: failed to unwrap instance \(String(describing: pInstance))")
+            return
+        }
+        FoundrySwift.RawReturnWriter.writeResult(returnValue, object.defaultRpc()) 
+
+    }
+
+
+    func fullConfig() {
+    }
+
+    static func _mproxy_fullConfig(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling `fullConfig`: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+        return FoundrySwift._wrapCallableResult(object.fullConfig())
+
+    }
+    static func _pproxy_fullConfig(        
+    _ pInstance: UnsafeMutableRawPointer?,
+    _ rargs: FoundrySwift.RawArguments,
+    _ returnValue: UnsafeMutableRawPointer?) {
+        guard let object = FoundrySwift._unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling `fullConfig`: failed to unwrap instance \(String(describing: pInstance))")
+            return
+        }
+        FoundrySwift.RawReturnWriter.writeResult(returnValue, object.fullConfig()) 
+
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: MultiplayerNode.self) else {
+            return
+        }
+        let className = StringName("MultiplayerNode")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerMethod(
+            className: className,
+            name: "syncPosition",
+            flags: .default,
+            returnValue: FoundrySwift._returnValuePropInfo(Swift.Void.self),
+            arguments: [
+                FoundrySwift._argumentPropInfo(Vector3.self, name: "position")
+            ],
+            function: MultiplayerNode._mproxy_syncPosition,
+            ptrFunction: { udata, classInstance, argsPtr, retValue in
+                guard let argsPtr else {
+                    Foundry.print("Foundry is not passing the arguments");
+                    return
+                }
+                MultiplayerNode._pproxy_syncPosition (classInstance, RawArguments(args: argsPtr), retValue)
+            }
+
+        )
+        FoundrySwift._registerMethod(
+            className: className,
+            name: "defaultRpc",
+            flags: .default,
+            returnValue: FoundrySwift._returnValuePropInfo(Swift.Void.self),
+            arguments: [
+
+            ],
+            function: MultiplayerNode._mproxy_defaultRpc,
+            ptrFunction: { udata, classInstance, argsPtr, retValue in
+                guard let argsPtr else {
+                    Foundry.print("Foundry is not passing the arguments");
+                    return
+                }
+                MultiplayerNode._pproxy_defaultRpc (classInstance, RawArguments(args: argsPtr), retValue)
+            }
+
+        )
+        FoundrySwift._registerMethod(
+            className: className,
+            name: "fullConfig",
+            flags: .default,
+            returnValue: FoundrySwift._returnValuePropInfo(Swift.Void.self),
+            arguments: [
+
+            ],
+            function: MultiplayerNode._mproxy_fullConfig,
+            ptrFunction: { udata, classInstance, argsPtr, retValue in
+                guard let argsPtr else {
+                    Foundry.print("Foundry is not passing the arguments");
+                    return
+                }
+                MultiplayerNode._pproxy_fullConfig (classInstance, RawArguments(args: argsPtr), retValue)
+            }
+
+        )
+    }
+
+    /// Called automatically before `_ready()`. Configures RPC for methods marked with `@Rpc`.
+    override open func _before_ready() {
+        super._before_ready()
+        rpcConfig(
+            method: StringName("sync_position"),
+            config: Variant([
+                "rpc_mode": Variant(MultiplayerAPI.RPCMode.anyPeer.rawValue),
+                "call_local": Variant(false),
+                "transfer_mode": Variant(MultiplayerPeer.TransferMode.reliable.rawValue),
+                "channel": Variant(0)
+            ] as GDictionary)
+        )
+        rpcConfig(
+            method: StringName("default_rpc"),
+            config: Variant([
+                "rpc_mode": Variant(MultiplayerAPI.RPCMode.authority.rawValue),
+                "call_local": Variant(false),
+                "transfer_mode": Variant(MultiplayerPeer.TransferMode.unreliable.rawValue),
+                "channel": Variant(0)
+            ] as GDictionary)
+        )
+        rpcConfig(
+            method: StringName("full_config"),
+            config: Variant([
+                "rpc_mode": Variant(MultiplayerAPI.RPCMode.authority.rawValue),
+                "call_local": Variant(true),
+                "transfer_mode": Variant(MultiplayerPeer.TransferMode.unreliableOrdered.rawValue),
+                "channel": Variant(2)
+            ] as GDictionary)
+        )
+        }
+}

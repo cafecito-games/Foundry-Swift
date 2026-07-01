@@ -1,0 +1,93 @@
+import FoundrySwift
+class ArrayTest: Node {
+   var firstNames: TypedArray<String> = ["Thelonius"]
+
+   static func _mproxy_set_firstNames(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+       guard let object = _unwrap(self, pInstance: pInstance) else {
+           FoundrySwift.Foundry.printErr("Error calling setter for firstNames: failed to unwrap instance \(String(describing: pInstance))")
+           return nil
+       }
+
+       FoundrySwift._invokeSetter(arguments, "firstNames", object.firstNames) {
+           object.firstNames = $0
+       }
+       return nil
+   }
+
+   static func _mproxy_get_firstNames(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+       guard let object = _unwrap(self, pInstance: pInstance) else {
+           FoundrySwift.Foundry.printErr("Error calling getter for firstNames: failed to unwrap instance \(String(describing: pInstance))")
+           return nil
+       }
+
+       return FoundrySwift._invokeGetter(object.firstNames)
+   }
+   var lastNames: TypedArray<String> = ["Monk"]
+
+   static func _mproxy_set_lastNames(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+       guard let object = _unwrap(self, pInstance: pInstance) else {
+           FoundrySwift.Foundry.printErr("Error calling setter for lastNames: failed to unwrap instance \(String(describing: pInstance))")
+           return nil
+       }
+
+       FoundrySwift._invokeSetter(arguments, "lastNames", object.lastNames) {
+           object.lastNames = $0
+       }
+       return nil
+   }
+
+   static func _mproxy_get_lastNames(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+       guard let object = _unwrap(self, pInstance: pInstance) else {
+           FoundrySwift.Foundry.printErr("Error calling getter for lastNames: failed to unwrap instance \(String(describing: pInstance))")
+           return nil
+       }
+
+       return FoundrySwift._invokeGetter(object.lastNames)
+   }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: ArrayTest.self) else {
+            return
+        }
+        let className = StringName("ArrayTest")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \ArrayTest.firstNames,
+                name: "first_names",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_first_names",
+            setterName: "set_first_names",
+            getterFunction: ArrayTest._mproxy_get_firstNames,
+            setterFunction: ArrayTest._mproxy_set_firstNames
+        )
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \ArrayTest.lastNames,
+                name: "last_names",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_last_names",
+            setterName: "set_last_names",
+            getterFunction: ArrayTest._mproxy_get_lastNames,
+            setterFunction: ArrayTest._mproxy_set_lastNames
+        )
+    }
+}

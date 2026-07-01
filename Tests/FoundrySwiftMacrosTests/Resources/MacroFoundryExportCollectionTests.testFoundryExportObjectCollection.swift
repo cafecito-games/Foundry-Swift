@@ -1,0 +1,50 @@
+
+class SomeNode: Node {
+    var greetings: TypedArray<Node3D> = []
+
+    static func _mproxy_set_greetings(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for greetings: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        FoundrySwift._invokeSetter(arguments, "greetings", object.greetings) {
+            object.greetings = $0
+        }
+        return nil
+    }
+
+    static func _mproxy_get_greetings(pInstance: UnsafeRawPointer?, arguments: borrowing FoundrySwift.Arguments) -> FoundrySwift.FastVariant? {
+        guard let object = _unwrap(self, pInstance: pInstance) else {
+            FoundrySwift.Foundry.printErr("Error calling getter for greetings: failed to unwrap instance \(String(describing: pInstance))")
+            return nil
+        }
+
+        return FoundrySwift._invokeGetter(object.greetings)
+    }
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        return _initializeClass
+    }
+
+    private static let _initializeClass: Void = {
+        let className = StringName("SomeNode")
+        assert(ClassDB.classExists(class: className))
+        let classInfo = ClassInfo<SomeNode> (name: className)
+        FoundrySwift._registerPropertyWithGetterSetter(
+            className: className,
+            info: FoundrySwift._propInfo(
+                at: \SomeNode.greetings,
+                name: "greetings",
+                userHint: nil,
+                userHintStr: nil,
+                userUsage: nil
+            ),
+            getterName: "get_greetings",
+            setterName: "set_greetings",
+            getterFunction: SomeNode._mproxy_get_greetings,
+            setterFunction: SomeNode._mproxy_set_greetings
+        )
+    } ()
+}

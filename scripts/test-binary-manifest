@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+rg -q 'swift package compute-checksum "\$zip_path"' scripts/release || fail "FoundrySwift checksum must be computed from the release zip"
+rg -q 'swift package compute-checksum "\$macro_zip_path"' scripts/release || fail "macro checksum must be computed from the release zip"
+rg -q '"checksum": "\$foundryswift_checksum"' scripts/release || fail "FoundrySwift manifest entry must include checksum"
+rg -q '"checksum": "\$macro_checksum"' scripts/release || fail "macro manifest entry must include checksum"
+
+# The runtime ships inside FoundrySwift.xcframework; it must not be released or
+# referenced as a separate binary artifact (duplicate class registration).
+rg -q 'FoundrySwiftRuntime.xcframework' scripts/release && fail "release must not ship a standalone FoundrySwiftRuntime.xcframework"
+rg -q '"name": "FoundrySwiftRuntime"' scripts/release && fail "binaries.json must not list a separate FoundrySwiftRuntime artifact"
+
+echo "binary manifest tests passed"

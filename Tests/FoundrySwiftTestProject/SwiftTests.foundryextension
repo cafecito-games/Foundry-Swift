@@ -1,0 +1,13 @@
+[configuration]
+entry_symbol = "swift_entry_point"
+compatibility_minimum = "0.1.0"
+
+[libraries]
+macos.arm64 = "res://bin/libFoundrySwiftTestExtension.dylib"
+macos.debug = "res://bin/libFoundrySwiftTestExtension.dylib"
+macos.release = "res://bin/libFoundrySwiftTestExtension.dylib"
+
+[dependencies]
+macos.arm64 = {"res://bin/libFoundrySwift.dylib": ""}
+macos.debug = {"res://bin/libFoundrySwift.dylib": ""}
+macos.release = {"res://bin/libFoundrySwift.dylib": ""}

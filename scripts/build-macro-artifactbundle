@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/build-macro-artifactbundle <output_dir> <version>
+
+Builds FoundrySwiftMacroLibrary as a macOS compiler-plugin executable and
+packages it as a SwiftPM artifact bundle named
+FoundrySwiftMacros.artifactbundle.zip in <output_dir>. The plugin is arm64-only
+by default; set FOUNDRY_SWIFT_INCLUDE_MACOS_X86=1 to build a universal
+(arm64 + x86_64) plugin.
+
+The result is consumed downstream via:
+
+  .binaryTarget(
+      name: "FoundrySwiftMacroLibrary",
+      url: ".../FoundrySwiftMacros.artifactbundle.zip",
+      checksum: "..."
+  )
+
+so the binary distribution ships a prebuilt macro plugin without forcing
+consumers to compile swift-syntax.
+
+Implementation note: rather than building the .macro target in the main
+package (which can't be selected with --target and would build the plugin
+for the host arch only), this script materializes a throwaway wrapper
+package that exposes the same sources as an .executableTarget. The macro
+sources already contain a manual `@main struct ...: CompilerPlugin` entry
+point, so the resulting executable is a valid macro plugin and can be
+built universal in one pass with `swift build --arch arm64 --arch x86_64`.
+EOF
+}
+
+if [[ $# -ne 2 ]]; then
+    usage >&2
+    exit 1
+fi
+
+output_dir=$1
+version=$2
+include_macos_x86=${FOUNDRY_SWIFT_INCLUDE_MACOS_X86:-}
+
+mkdir -p "$output_dir"
+
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo "This script must run on macOS (needs lipo + Apple Swift toolchain)." >&2
+    exit 1
+fi
+
+repo_root=$(pwd)
+macro_sources="$repo_root/Sources/FoundrySwiftMacroLibrary"
+
+if [[ ! -d "$macro_sources" ]]; then
+    echo "Could not find macro sources at $macro_sources" >&2
+    echo "Run this script from the FoundrySwift repository root." >&2
+    exit 1
+fi
+
+scratch=".build-macro-artifact"
+rm -rf "$scratch"
+mkdir -p "$scratch/MacroBuilder/Sources"
+
+# Symlink the real macro sources into the wrapper package so SwiftPM can
+# resolve them through the default Sources/<TargetName> path.
+ln -s "$macro_sources" "$scratch/MacroBuilder/Sources/FoundrySwiftMacroLibrary"
+
+cat > "$scratch/MacroBuilder/Package.swift" <<'EOF'
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "MacroBuilder",
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(
+            name: "FoundrySwiftMacroLibrary",
+            targets: ["FoundrySwiftMacroLibrary"]
+        ),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-syntax", from: "600.0.1"),
+    ],
+    targets: [
+        .executableTarget(
+            name: "FoundrySwiftMacroLibrary",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+                .product(name: "SwiftDiagnostics", package: "swift-syntax"),
+                .product(name: "SwiftParserDiagnostics", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftBasicFormat", package: "swift-syntax"),
+            ],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        )
+    ]
+)
+EOF
+
+build_archs=(--arch arm64)
+if [[ -n "$include_macos_x86" ]]; then
+    build_archs+=(--arch x86_64)
+    echo "Building FoundrySwiftMacroLibrary universal (arm64 + x86_64)..."
+else
+    echo "Building FoundrySwiftMacroLibrary (arm64)..."
+fi
+(
+    cd "$scratch/MacroBuilder"
+    swift build \
+        -c release \
+        "${build_archs[@]}" \
+        --product FoundrySwiftMacroLibrary
+)
+
+plugin_bin=""
+for candidate in \
+    "$scratch/MacroBuilder/.build/apple/Products/Release/FoundrySwiftMacroLibrary" \
+    "$scratch/MacroBuilder/.build/release/FoundrySwiftMacroLibrary"; do
+    if [[ -f "$candidate" ]]; then
+        plugin_bin=$candidate
+        break
+    fi
+done
+
+if [[ -z "$plugin_bin" ]]; then
+    echo "Could not find built FoundrySwiftMacroLibrary executable under $scratch/MacroBuilder/.build" >&2
+    find "$scratch/MacroBuilder/.build" -maxdepth 6 -name "FoundrySwiftMacroLibrary" -type f >&2 || true
+    exit 1
+fi
+
+echo "Found plugin: $plugin_bin"
+arch_info=$(lipo -info "$plugin_bin")
+echo "$arch_info"
+if [[ -n "$include_macos_x86" ]]; then
+    if ! echo "$arch_info" | grep -qE "(x86_64.*arm64|arm64.*x86_64)"; then
+        echo "Plugin is not a universal binary (expected arm64 + x86_64)." >&2
+        exit 1
+    fi
+else
+    if ! echo "$arch_info" | grep -q "arm64"; then
+        echo "Plugin is not an arm64 binary." >&2
+        exit 1
+    fi
+fi
+
+bundle_root="$output_dir/FoundrySwiftMacros.artifactbundle"
+rm -rf "$bundle_root"
+mkdir -p "$bundle_root/FoundrySwiftMacroLibrary-macos/bin"
+
+cp "$plugin_bin" "$bundle_root/FoundrySwiftMacroLibrary-macos/bin/FoundrySwiftMacroLibrary"
+chmod +x "$bundle_root/FoundrySwiftMacroLibrary-macos/bin/FoundrySwiftMacroLibrary"
+
+if [[ -n "$include_macos_x86" ]]; then
+    supported_triples='"arm64-apple-macosx",
+            "x86_64-apple-macosx"'
+else
+    supported_triples='"arm64-apple-macosx"'
+fi
+
+cat > "$bundle_root/info.json" <<EOF
+{
+  "schemaVersion": "1.0",
+  "artifacts": {
+    "FoundrySwiftMacroLibrary": {
+      "type": "executable",
+      "version": "$version",
+      "variants": [
+        {
+          "path": "FoundrySwiftMacroLibrary-macos/bin/FoundrySwiftMacroLibrary",
+          "supportedTriples": [
+            $supported_triples
+          ]
+        }
+      ]
+    }
+  }
+}
+EOF
+
+echo "Zipping artifact bundle..."
+zip_path="$output_dir/FoundrySwiftMacros.artifactbundle.zip"
+rm -f "$zip_path"
+(cd "$output_dir" && ditto -c -k --sequesterRsrc --keepParent FoundrySwiftMacros.artifactbundle FoundrySwiftMacros.artifactbundle.zip)
+
+echo "Artifact bundle: $zip_path"

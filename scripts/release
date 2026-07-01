@@ -1,0 +1,299 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    echo "Usage: scripts/release TAG RELEASE_NOTES_FILE COMMIT"
+    echo
+    echo "Environment:"
+    echo "  FOUNDRY_SWIFT_SOURCE_REPO       GitHub source repo. Default: cafecito-games/Foundry-Swift"
+    echo "  FOUNDRY_SWIFT_BINARY_REPO       GitHub binary package repo. Default: cafecito-games/Foundry-Swift-Binary"
+    echo "  FOUNDRY_SWIFT_BINARY_REPO_DIR   Local binary repo checkout. Default: ../Foundry-Swift-Binary"
+    echo "  FOUNDRY_SWIFT_BINARY_BRANCH     Binary repo branch. Default: main"
+    echo "  FOUNDRY_SWIFT_OUTPUT_DIR        Build output directory. Default: \$HOME/foundryswift-builds"
+    echo "  FOUNDRY_SWIFT_CONFIGURATION     Distribution build configuration. Default: Release"
+    echo "  FOUNDRY_SWIFT_DERIVED_DATA      DerivedData directory to build into or package from"
+    echo "  FOUNDRY_SWIFT_SKIP_BUILD        Package prebuilt DerivedData instead of running xcodebuild"
+    echo "  FOUNDRY_SWIFT_NODEPLOY          Build the xcframework but skip GitHub release publishing"
+    echo "  FOUNDRY_SWIFT_INCLUDE_MACOS_X86 Also build a macOS x86_64 (Intel) slice"
+}
+
+if [[ $# -ne 3 ]]; then
+    usage
+    exit 1
+fi
+
+tag=$1
+release_notes=$2
+commit=$3
+
+source_repo=${FOUNDRY_SWIFT_SOURCE_REPO:-cafecito-games/Foundry-Swift}
+binary_repo=${FOUNDRY_SWIFT_BINARY_REPO:-cafecito-games/Foundry-Swift-Binary}
+binary_repo_dir=${FOUNDRY_SWIFT_BINARY_REPO_DIR:-../Foundry-Swift-Binary}
+binary_branch=${FOUNDRY_SWIFT_BINARY_BRANCH:-main}
+output_dir=${FOUNDRY_SWIFT_OUTPUT_DIR:-$HOME/foundryswift-builds}
+configuration=${FOUNDRY_SWIFT_CONFIGURATION:-Release}
+include_macos_x86=${FOUNDRY_SWIFT_INCLUDE_MACOS_X86:-}
+
+if [[ ! -f "$release_notes" ]]; then
+    echo "Expected a release notes file: $release_notes"
+    exit 1
+fi
+
+if [[ ! -x scripts/build-distribution-products || ! -x scripts/make-foundryswift-framework || ! -x scripts/build-macro-artifactbundle || ! -x scripts/package-foundry-addon ]]; then
+    echo "Expected this to run from the FoundrySwift directory"
+    exit 1
+fi
+
+git rev-parse --verify "$commit^{commit}" >/dev/null
+
+if [[ -z "${FOUNDRY_SWIFT_NODEPLOY:-}" ]]; then
+    if [[ ! -d "$binary_repo_dir/.git" ]]; then
+        echo "Expected a checkout of $binary_repo at $binary_repo_dir"
+        echo "Clone it with: git clone git@github.com:$binary_repo.git $binary_repo_dir"
+        exit 1
+    fi
+
+    (
+        cd "$binary_repo_dir"
+        if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "Binary repo has uncommitted changes: $binary_repo_dir"
+            exit 1
+        fi
+
+        if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+            git checkout -B "$binary_branch"
+        elif [[ "$(git branch --show-current)" != "$binary_branch" ]]; then
+            git checkout "$binary_branch"
+        fi
+    )
+
+    if git rev-parse --verify "$tag" >/dev/null 2>&1; then
+        echo "Source tag already exists locally: $tag"
+    else
+        git tag "$tag" "$commit"
+    fi
+fi
+
+arch=$(uname -m)
+build_dir="$output_dir/$$-build"
+derived_data=${FOUNDRY_SWIFT_DERIVED_DATA:-$build_dir/derived}
+derived_data=${derived_data%/}
+archive_path="$build_dir/archive"
+
+mkdir -p "$derived_data"
+mkdir -p "$archive_path"
+
+echo "Building in: $build_dir"
+echo "DerivedData: $derived_data"
+echo "ArchiveData: $archive_path"
+echo "Configuration: $configuration"
+echo "Commit: $commit"
+echo "Source repo: $source_repo"
+echo "Binary repo: $binary_repo"
+start=$(date)
+
+if [[ -z "${FOUNDRY_SWIFT_SKIP_BUILD:-}" ]]; then
+    prepared_release_package="$build_dir/distribution-prepared"
+
+    echo "Preparing generated-source distribution package..."
+    FOUNDRY_SWIFT_DESTINATION="platform=macOS,arch=$arch" \
+    FOUNDRY_SWIFT_DERIVED_DATA="$build_dir/prepared-derived" \
+    FOUNDRY_SWIFT_CONFIGURATION="$configuration" \
+    FOUNDRY_SWIFT_GENERATION_DERIVED_DATA="$build_dir/prepared-generation" \
+    FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR="$prepared_release_package" \
+    FOUNDRY_SWIFT_ARCHIVE_PATH="$archive_path" \
+    FOUNDRY_SWIFT_STAGE_ONLY=1 \
+        scripts/build-distribution-products > "$build_dir/stage-package.log"
+
+    build_distribution_products() {
+        local destination=$1
+        local product_derived_data=$2
+        local generation_derived_data=$3
+        local release_package=$4
+        local log_file=$5
+
+        echo "Building distribution products for: $destination"
+        FOUNDRY_SWIFT_DESTINATION="$destination" \
+        FOUNDRY_SWIFT_DERIVED_DATA="$product_derived_data" \
+        FOUNDRY_SWIFT_CONFIGURATION="$configuration" \
+        FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR="$prepared_release_package" \
+        FOUNDRY_SWIFT_GENERATION_DERIVED_DATA="$generation_derived_data" \
+        FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR="$release_package" \
+        FOUNDRY_SWIFT_ARCHIVE_PATH="$archive_path" \
+        FOUNDRY_SWIFT_ARCHS="${FOUNDRY_SWIFT_ARCHS:-}" \
+            scripts/build-distribution-products > "$log_file"
+    }
+
+    build_distribution_products \
+        "platform=macOS,arch=arm64" \
+        "$derived_data" \
+        "$build_dir/generated-arm64" \
+        "$build_dir/distribution-arm64" \
+        "$build_dir/arm64.log"
+
+    if [[ -n "$include_macos_x86" ]]; then
+        build_distribution_products \
+            "platform=macOS,arch=x86_64" \
+            "${derived_data}_x86" \
+            "$build_dir/generated-x86_64" \
+            "$build_dir/distribution-x86_64" \
+            "$build_dir/x86_64.log"
+    fi
+
+    build_distribution_products \
+        "generic/platform=iOS" \
+        "$derived_data" \
+        "$build_dir/generated-ios" \
+        "$build_dir/distribution-ios" \
+        "$build_dir/ios_arm64.log"
+
+    FOUNDRY_SWIFT_ARCHS="arm64" build_distribution_products \
+        "generic/platform=iOS Simulator" \
+        "$derived_data" \
+        "$build_dir/generated-ios-simulator" \
+        "$build_dir/distribution-ios-simulator" \
+        "$build_dir/ios_simulator_arm64.log"
+else
+    echo "Using prebuilt DerivedData from: $derived_data"
+    require_prebuilt_artifact() {
+        if [[ ! -e "$1" ]]; then
+            echo "Missing prebuilt release artifact: $1"
+            exit 1
+        fi
+    }
+
+    # FoundrySwift is a Swift module: requires .swiftmodule + generated -Swift.h.
+    # FoundrySwiftEmbed is a C-only shim: only the .framework needs to exist.
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration/PackageFrameworks/FoundrySwift.framework"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration/FoundrySwift.swiftmodule"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps/FoundrySwift.modulemap"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps/FoundrySwift-Swift.h"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration/PackageFrameworks/FoundrySwiftEmbed.framework"
+    if [[ -n "$include_macos_x86" ]]; then
+        require_prebuilt_artifact "${derived_data}_x86/Build/Products/$configuration/PackageFrameworks/FoundrySwift.framework"
+        require_prebuilt_artifact "${derived_data}_x86/Build/Products/$configuration/FoundrySwift.swiftmodule"
+        require_prebuilt_artifact "${derived_data}_x86/Build/Intermediates.noindex/GeneratedModuleMaps/FoundrySwift.modulemap"
+        require_prebuilt_artifact "${derived_data}_x86/Build/Intermediates.noindex/GeneratedModuleMaps/FoundrySwift-Swift.h"
+        require_prebuilt_artifact "${derived_data}_x86/Build/Products/$configuration/PackageFrameworks/FoundrySwiftEmbed.framework"
+    fi
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphoneos/PackageFrameworks/FoundrySwift.framework"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphoneos/FoundrySwift.swiftmodule"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos/FoundrySwift.modulemap"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps-iphoneos/FoundrySwift-Swift.h"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphoneos/PackageFrameworks/FoundrySwiftEmbed.framework"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphonesimulator/PackageFrameworks/FoundrySwift.framework"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphonesimulator/FoundrySwift.swiftmodule"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/FoundrySwift.modulemap"
+    require_prebuilt_artifact "$derived_data/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/FoundrySwift-Swift.h"
+    require_prebuilt_artifact "$derived_data/Build/Products/$configuration-iphonesimulator/PackageFrameworks/FoundrySwiftEmbed.framework"
+fi
+
+FOUNDRY_SWIFT_CONFIGURATION="$configuration" scripts/make-foundryswift-framework "$derived_data/" "$output_dir"
+addon_zip_path="$output_dir/FoundrySwift-$tag.zip"
+scripts/package-foundry-addon "$tag" "$output_dir/FoundrySwift.xcframework" "$output_dir/FoundrySwiftEmbed.xcframework" "$output_dir" >/dev/null
+
+if [[ -n "${FOUNDRY_SWIFT_NODEPLOY:-}" ]]; then
+    echo "Skipping deployment stage."
+    exit
+fi
+
+zip_path="$output_dir/FoundrySwift.xcframework.zip"
+(cd "$output_dir"; ditto -c -k --sequesterRsrc --keepParent FoundrySwift.xcframework FoundrySwift.xcframework.zip)
+asset_url="https://github.com/$source_repo/releases/download/$tag/FoundrySwift.xcframework.zip"
+foundryswift_checksum=$(swift package compute-checksum "$zip_path")
+
+scripts/build-macro-artifactbundle "$output_dir" "$tag"
+macro_zip_path="$output_dir/FoundrySwiftMacros.artifactbundle.zip"
+macro_asset_url="https://github.com/$source_repo/releases/download/$tag/FoundrySwiftMacros.artifactbundle.zip"
+macro_checksum=$(swift package compute-checksum "$macro_zip_path")
+
+gh release create "$tag" "$zip_path" "$macro_zip_path" "$addon_zip_path" -R "$source_repo" -F "$release_notes" --target "$commit"
+
+foundry_extension_target_dir="$binary_repo_dir/Sources/FoundryExtension"
+rm -rf "$foundry_extension_target_dir"
+mkdir -p "$foundry_extension_target_dir/include"
+cp Sources/FoundryExtension/FoundryExtension.h "$foundry_extension_target_dir/FoundryExtension.h"
+cp Sources/FoundryExtension/FoundryExtensionSupport.c "$foundry_extension_target_dir/FoundryExtensionSupport.c"
+cp Sources/FoundryExtension/include/FoundryExtensionSupport.h "$foundry_extension_target_dir/include/FoundryExtensionSupport.h"
+cp Sources/FoundryExtension/include/foundry_extension_interface.h "$foundry_extension_target_dir/include/foundry_extension_interface.h"
+
+# Drop any previously vendored FoundrySwiftMacroLibrary sources; we now ship a
+# prebuilt compiler plugin via FoundrySwiftMacros.artifactbundle.zip.
+rm -rf "$binary_repo_dir/Sources/FoundrySwiftMacroLibrary"
+
+# Write binaries.json so consumers can download artifacts with `gh release download`
+# and place them under Binaries/ where the path-based Package.swift expects them.
+cat > "$binary_repo_dir/binaries.json" <<EOF
+{
+  "version": "$tag",
+  "sourceRepo": "$source_repo",
+  "artifacts": [
+    {
+      "name": "FoundrySwift",
+      "file": "FoundrySwift.xcframework.zip",
+      "url": "$asset_url",
+      "checksum": "$foundryswift_checksum",
+      "localPath": "Binaries/FoundrySwift.xcframework"
+    },
+    {
+      "name": "FoundrySwiftMacroLibrary",
+      "file": "FoundrySwiftMacros.artifactbundle.zip",
+      "url": "$macro_asset_url",
+      "checksum": "$macro_checksum",
+      "localPath": "Binaries/FoundrySwiftMacros.artifactbundle"
+    }
+  ]
+}
+EOF
+
+# Ensure Binaries/ (where extracted artifacts live) is not tracked in git.
+if ! grep -qxF 'Binaries/' "$binary_repo_dir/.gitignore" 2>/dev/null; then
+    echo 'Binaries/' >> "$binary_repo_dir/.gitignore"
+fi
+
+cat > "$binary_repo_dir/Package.swift" <<EOF
+// swift-tools-version:6.2
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "FoundrySwift",
+    platforms: [
+        .macOS(.v14),
+        .iOS(.v17),
+    ],
+    products: [
+        .library(
+            name: "FoundrySwift",
+            targets: ["FoundrySwift", "FoundryExtensionC", "FoundrySwiftMacroLibrary"]),
+    ],
+    targets: [
+        .binaryTarget(
+            name: "FoundrySwift",
+            path: "Binaries/FoundrySwift.xcframework"),
+        .binaryTarget(
+            name: "FoundrySwiftMacroLibrary",
+            path: "Binaries/FoundrySwiftMacros.artifactbundle"),
+        .target(
+            name: "FoundryExtensionC",
+            path: "Sources/FoundryExtension"),
+        .testTarget(name: "FoundrySwiftTests", dependencies: ["FoundrySwift", "FoundryExtensionC"]),
+    ]
+)
+EOF
+
+(
+    cd "$binary_repo_dir"
+    git add Package.swift Sources/FoundryExtension binaries.json .gitignore
+    if [[ -d Sources/FoundrySwiftMacroLibrary ]] || git ls-files --error-unmatch Sources/FoundrySwiftMacroLibrary >/dev/null 2>&1; then
+        git rm -rf --ignore-unmatch Sources/FoundrySwiftMacroLibrary
+    fi
+    git commit -m "Update to $tag"
+    git tag "$tag"
+    git push -u origin "$binary_branch"
+    git push origin "$tag"
+)
+
+echo "Started at: $start"
+echo "Ended at: $(date)"

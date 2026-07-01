@@ -1,0 +1,23 @@
+class OtherThing: FoundrySwift.Node {            
+    var signal0: SimpleSignal, signal1: SimpleSignal
+
+    nonisolated override open class var classInitializer: Void {
+        let _ = super.classInitializer
+        MainActor.assumeIsolated {
+            _initializeClass()
+        }
+    }
+
+    private static func _initializeClass() {
+        guard foundrySwiftShouldInitializeClass(type: OtherThing.self) else {
+            return
+        }
+        let className = StringName("OtherThing")
+        if classInitializationLevel.rawValue >= ExtensionInitializationLevel.scene.rawValue {
+            // ClassDB singleton is not available prior to `.scene` level
+            assert(ClassDB.classExists(class: className))
+        }
+        SimpleSignal.register(as: "signal0", in: className, names: [])
+        SimpleSignal.register(as: "signal1", in: className, names: [])
+    }
+}

@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/build-distribution-products
+
+Environment:
+  FOUNDRY_SWIFT_DESTINATION              Required xcodebuild destination.
+  FOUNDRY_SWIFT_DERIVED_DATA            Required DerivedData path for distribution products.
+  FOUNDRY_SWIFT_CONFIGURATION           Optional distribution build configuration. Default: Release.
+  FOUNDRY_SWIFT_ARCHIVE_PATH            Optional xcodebuild archive path.
+  FOUNDRY_SWIFT_GENERATION_DERIVED_DATA Optional DerivedData path for the generator build.
+  FOUNDRY_SWIFT_GENERATION_DESTINATION  Optional destination for the generator build.
+  FOUNDRY_SWIFT_GENERATION_CONFIGURATION Optional generation build configuration. Default: Debug.
+  FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR     Optional temp package directory.
+  FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR    Optional generated-source package to build from.
+  FOUNDRY_SWIFT_ARCHS                   Optional space-separated ARCHS override for the distribution build.
+  FOUNDRY_SWIFT_STAGE_ONLY              Stage generated-source package and exit.
+EOF
+}
+
+destination=${FOUNDRY_SWIFT_DESTINATION:-}
+derived_data=${FOUNDRY_SWIFT_DERIVED_DATA:-}
+
+if [[ -z "$destination" || -z "$derived_data" ]]; then
+    usage
+    exit 1
+fi
+
+absolute_path() {
+    case "$1" in
+        /*)
+            printf '%s\n' "$1"
+            ;;
+        *)
+            printf '%s/%s\n' "$(pwd)" "$1"
+            ;;
+    esac
+}
+
+derived_data=$(absolute_path "$derived_data")
+archive_path=$(absolute_path "${FOUNDRY_SWIFT_ARCHIVE_PATH:-"$derived_data/archive"}")
+configuration=${FOUNDRY_SWIFT_CONFIGURATION:-Release}
+generation_destination=${FOUNDRY_SWIFT_GENERATION_DESTINATION:-"$destination"}
+generation_configuration=${FOUNDRY_SWIFT_GENERATION_CONFIGURATION:-Debug}
+generation_derived_data=$(absolute_path "${FOUNDRY_SWIFT_GENERATION_DERIVED_DATA:-"${derived_data}-generation"}")
+release_package=$(absolute_path "${FOUNDRY_SWIFT_RELEASE_PACKAGE_DIR:-"${RUNNER_TEMP:-$(pwd)/.build}/foundryswift-distribution-package"}")
+prepared_package=${FOUNDRY_SWIFT_PREPARED_PACKAGE_DIR:-}
+if [[ -n "$prepared_package" ]]; then
+    prepared_package=$(absolute_path "$prepared_package")
+fi
+stage_only=${FOUNDRY_SWIFT_STAGE_ONLY:-}
+archs=${FOUNDRY_SWIFT_ARCHS:-}
+
+build_settings=(BUILD_LIBRARY_FOR_DISTRIBUTION=YES)
+if [[ -n "$archs" ]]; then
+    build_settings+=("ARCHS=$archs" ONLY_ACTIVE_ARCH=NO)
+fi
+
+echo "Distribution destination: $destination"
+echo "Distribution DerivedData: $derived_data"
+echo "Distribution configuration: $configuration"
+echo "Generation destination: $generation_destination"
+echo "Generation DerivedData: $generation_derived_data"
+echo "Generation configuration: $generation_configuration"
+echo "Temporary package: $release_package"
+if [[ -n "$prepared_package" ]]; then
+    echo "Prepared package: $prepared_package"
+fi
+
+mkdir -p "$generation_derived_data" "$derived_data" "$archive_path"
+
+if [[ -n "$prepared_package" ]]; then
+    echo "Using prepared generated-source distribution package..."
+    [[ -f "$prepared_package/Package.swift" ]] || {
+        echo "Error: Prepared package is missing Package.swift: $prepared_package"
+        exit 1
+    }
+    rm -rf "$release_package"
+    mkdir -p "$release_package"
+    rsync -a --delete "$prepared_package"/ "$release_package"/
+else
+    echo "Phase 1: generating FoundrySwift sources..."
+    xcodebuild \
+        -quiet \
+        -scheme FoundrySwift \
+        -destination "$generation_destination" \
+        -configuration "$generation_configuration" \
+        -derivedDataPath "$generation_derived_data" \
+        -archivePath "$archive_path"
+
+    plugin_intermediates="$generation_derived_data/Build/Intermediates.noindex/BuildToolPluginIntermediates"
+    foundryswift_gen_src=$(find "$plugin_intermediates" -type d \
+        -path "*/FoundrySwift/CodeGeneratorPlugin/GeneratedSources/FoundrySwift" 2>/dev/null | head -1)
+
+    if [[ -z "$foundryswift_gen_src" ]]; then
+        echo "Error: Could not find CodeGeneratorPlugin output under $plugin_intermediates"
+        exit 1
+    fi
+
+    echo "Staging temporary distribution package..."
+    rm -rf "$release_package"
+    mkdir -p "$release_package/Sources"
+    cp Package.distribution.swift "$release_package/Package.swift"
+    rsync -a --delete Sources/FoundryExtension "$release_package/Sources/"
+    rsync -a --delete --exclude "_generated" Sources/FoundrySwift "$release_package/Sources/"
+    rsync -a --delete Sources/FoundrySwiftEmbed "$release_package/Sources/"
+
+    mkdir -p "$release_package/Sources/FoundrySwift/_generated"
+
+    # FoundrySwift is a single module: copy both generated/ and generated-builtin/ output.
+    find "$foundryswift_gen_src" -name "*.swift" -exec cp {} "$release_package/Sources/FoundrySwift/_generated/" \;
+fi
+
+if [[ -n "$stage_only" ]]; then
+    echo "Staged generated-source distribution package at $release_package"
+    exit 0
+fi
+
+echo "Phase 2: building distribution products..."
+# Build FoundrySwift and FoundrySwiftEmbed schemes separately. On Xcode 26.4 +
+# Swift PM, building only the FoundrySwiftEmbed scheme does not emit a sibling
+# PackageFrameworks/FoundrySwift.framework: the FoundrySwift dependency is
+# compiled but not assembled as a peer .framework bundle, so the downstream
+# pack step in release.yml fails with "Cannot stat ... FoundrySwift.framework".
+# Building both schemes guarantees both .framework bundles materialize.
+build_scheme() {
+    local scheme=$1
+    echo "Building scheme: $scheme"
+    (
+        cd "$release_package"
+        xcodebuild \
+            -quiet \
+            -scheme "$scheme" \
+            -destination "$destination" \
+            -configuration "$configuration" \
+            -derivedDataPath "$derived_data" \
+            -archivePath "$archive_path" \
+            "${build_settings[@]}"
+    )
+}
+
+build_scheme FoundrySwift
+build_scheme FoundrySwiftEmbed

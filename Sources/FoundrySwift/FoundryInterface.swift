@@ -1,0 +1,28 @@
+//
+//  FoundryInterface.swift
+//  FoundrySwift
+//
+//  Created by Miguel de Icaza on 11/13/25.
+//
+
+/// Adds the specified type as a Foundry Editor Plugin.
+///
+/// You typically invoke this method from the `setupScene` method when initializing
+/// the `.editor` level.   The type specified should have been declared with `@Foundry(.tool)`
+public func editorAddPlugin<T:EditorPlugin> (type: T.Type) {
+    let typeStr = String (describing: type)
+    editorAddPlugin(name: StringName(typeStr))
+}
+
+/// Removes a Foundry editor plugin from the editor by name
+public func editorRemovePlugin(name: StringName) {
+    withUnsafeMutablePointer(to: &name.content) { namePtr in
+        gi.editor_remove_plugin(namePtr)
+    }
+}
+
+/// Removes a Foundry editor plugin.
+public func editorRemovePlugin<T:EditorPlugin> (type: T.Type) {
+    let typeStr = String (describing: type)
+    editorRemovePlugin(name: StringName(typeStr))
+}
