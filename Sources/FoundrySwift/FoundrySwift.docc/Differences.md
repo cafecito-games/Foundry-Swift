@@ -135,7 +135,7 @@ For additional information on defining and connecting to signals see the
 FoundryScript supports an `@onready` annotation on variables, like this:
 
 
-```gdscript
+```FoundryScript
 @onready var my_label = get_node("MyLabel")
 ```
 

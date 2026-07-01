@@ -24,7 +24,14 @@ forbid_path() {
 forbid_rg() {
   local pattern="$1"
   local description="$2"
-  if rg -n --glob '!.git/**' --glob '!docs/superpowers/**' --glob '!scripts/audit-foundry-product' "$pattern" . >"$matches_file"; then
+  if rg -n \
+    --glob '!.git/**' \
+    --glob '!docs/superpowers/**' \
+    --glob '!scripts/audit-foundry-product' \
+    --glob '!Sources/ExtensionApi/extension_api.json' \
+    --glob '!Sources/ExtensionApi/foundry_extension_interface.json' \
+    --glob '!Sources/FoundryExtension/include/foundry_extension_interface.h' \
+    "$pattern" . >"$matches_file"; then
     echo "forbidden $description:" >&2
     cat "$matches_file" >&2
     failures=$((failures + 1))
@@ -47,6 +54,8 @@ forbid_path Sources/SwiftGodotTestMacrosLibrary
 forbid_path Tests/SwiftGodotMacrosTests
 
 forbid_rg 'SwiftGodot|Swift Godot|swiftgodot' 'SwiftGodot references'
+forbid_rg 'Godot|godot|GODOT' 'Godot references'
+forbid_rg 'GDScript|gdscript|GDSCRIPT' 'GDScript references'
 forbid_rg 'GDExtension|gdextension' 'GDExtension references'
 forbid_rg '\.gdextension' '.gdextension references'
 forbid_rg '@Godot\b' '@Godot macro references'

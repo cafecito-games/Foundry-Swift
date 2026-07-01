@@ -2,8 +2,8 @@
 /*  foundry_extension_interface.h                                               */
 /**************************************************************************/
 /*                         This file is part of:                          */
-/*                             GODOT ENGINE                               */
-/*                        https://godotengine.org                         */
+/*                             FOUNDRY ENGINE                             */
+/*                  https://docs.cafecito.games/foundry                   */
 /**************************************************************************/
 /* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
 /* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
@@ -236,7 +236,7 @@ typedef void (*FoundryExtensionClassFreePropertyList2)(FoundryExtensionClassInst
 typedef FoundryExtensionBool (*FoundryExtensionClassPropertyCanRevert)(FoundryExtensionClassInstancePtr p_instance, FoundryExtensionConstStringNamePtr p_name);
 typedef FoundryExtensionBool (*FoundryExtensionClassPropertyGetRevert)(FoundryExtensionClassInstancePtr p_instance, FoundryExtensionConstStringNamePtr p_name, FoundryExtensionVariantPtr r_ret);
 typedef FoundryExtensionBool (*FoundryExtensionClassValidateProperty)(FoundryExtensionClassInstancePtr p_instance, FoundryExtensionPropertyInfo *p_property);
-typedef void (*FoundryExtensionClassNotification)(FoundryExtensionClassInstancePtr p_instance, int32_t p_what); /* Deprecated in Godot 4.2. Use `FoundryExtensionClassNotification2` instead. */
+typedef void (*FoundryExtensionClassNotification)(FoundryExtensionClassInstancePtr p_instance, int32_t p_what); /* Deprecated in Foundry 4.2. Use `FoundryExtensionClassNotification2` instead. */
 typedef void (*FoundryExtensionClassNotification2)(FoundryExtensionClassInstancePtr p_instance, int32_t p_what, FoundryExtensionBool p_reversed);
 typedef void (*FoundryExtensionClassToString)(FoundryExtensionClassInstancePtr p_instance, FoundryExtensionBool *r_is_valid, FoundryExtensionStringPtr p_out);
 typedef void (*FoundryExtensionClassReference)(FoundryExtensionClassInstancePtr p_instance);
@@ -273,7 +273,7 @@ typedef struct {
 	FoundryExtensionClassGetRID get_rid_func;
 	/* Per-class user data, later accessible in instance bindings. */
 	void *class_userdata;
-} FoundryExtensionClassCreationInfo; /* Deprecated in Godot 4.2. Use `FoundryExtensionClassCreationInfo4` instead. */
+} FoundryExtensionClassCreationInfo; /* Deprecated in Foundry 4.2. Use `FoundryExtensionClassCreationInfo4` instead. */
 
 typedef struct {
 	FoundryExtensionBool is_virtual;
@@ -300,7 +300,7 @@ typedef struct {
 	/* Paired with `call_virtual_with_data_func`, this is an alternative to `get_virtual_func` for extensions that
 	 * need or benefit from extra data when calling virtual functions.
 	 * Returns user data that will be passed to `call_virtual_with_data_func`.
-	 * Returning `NULL` from this function signals to Godot that the virtual function is not overridden.
+	 * Returning `NULL` from this function signals to Foundry that the virtual function is not overridden.
 	 * Data returned from this function should be managed by the extension and must be valid until the extension is deinitialized.
 	 * You should supply either `get_virtual_func`, or `get_virtual_call_data_func` with `call_virtual_with_data_func`.
 	 */
@@ -310,7 +310,7 @@ typedef struct {
 	FoundryExtensionClassGetRID get_rid_func;
 	/* Per-class user data, later accessible in instance bindings. */
 	void *class_userdata;
-} FoundryExtensionClassCreationInfo2; /* Deprecated in Godot 4.3. Use `FoundryExtensionClassCreationInfo4` instead. */
+} FoundryExtensionClassCreationInfo2; /* Deprecated in Foundry 4.3. Use `FoundryExtensionClassCreationInfo4` instead. */
 
 typedef struct {
 	FoundryExtensionBool is_virtual;
@@ -338,7 +338,7 @@ typedef struct {
 	/* Paired with `call_virtual_with_data_func`, this is an alternative to `get_virtual_func` for extensions that
 	 * need or benefit from extra data when calling virtual functions.
 	 * Returns user data that will be passed to `call_virtual_with_data_func`.
-	 * Returning `NULL` from this function signals to Godot that the virtual function is not overridden.
+	 * Returning `NULL` from this function signals to Foundry that the virtual function is not overridden.
 	 * Data returned from this function should be managed by the extension and must be valid until the extension is deinitialized.
 	 * You should supply either `get_virtual_func`, or `get_virtual_call_data_func` with `call_virtual_with_data_func`.
 	 */
@@ -348,7 +348,7 @@ typedef struct {
 	FoundryExtensionClassGetRID get_rid_func;
 	/* Per-class user data, later accessible in instance bindings. */
 	void *class_userdata;
-} FoundryExtensionClassCreationInfo3; /* Deprecated in Godot 4.4. Use `FoundryExtensionClassCreationInfo4` instead. */
+} FoundryExtensionClassCreationInfo3; /* Deprecated in Foundry 4.4. Use `FoundryExtensionClassCreationInfo4` instead. */
 
 typedef struct {
 	FoundryExtensionBool is_virtual;
@@ -377,7 +377,7 @@ typedef struct {
 	/* Paired with `call_virtual_with_data_func`, this is an alternative to `get_virtual_func` for extensions that
 	 * need or benefit from extra data when calling virtual functions.
 	 * Returns user data that will be passed to `call_virtual_with_data_func`.
-	 * Returning `NULL` from this function signals to Godot that the virtual function is not overridden.
+	 * Returning `NULL` from this function signals to Foundry that the virtual function is not overridden.
 	 * Data returned from this function should be managed by the extension and must be valid until the extension is deinitialized.
 	 * You should supply either `get_virtual_func`, or `get_virtual_call_data_func` with `call_virtual_with_data_func`.
 	 */
@@ -494,7 +494,7 @@ typedef struct {
 	FoundryExtensionCallableCustomEqual equal_func;
 	FoundryExtensionCallableCustomLessThan less_than_func;
 	FoundryExtensionCallableCustomToString to_string_func;
-} FoundryExtensionCallableCustomInfo; /* Deprecated in Godot 4.3. Use `FoundryExtensionCallableCustomInfo2` instead. */
+} FoundryExtensionCallableCustomInfo; /* Deprecated in Foundry 4.3. Use `FoundryExtensionCallableCustomInfo2` instead. */
 
 /* Only `call_func` and `token` are strictly required, however, `object_id` should be passed if its not a static method.
  *
@@ -529,7 +529,7 @@ typedef void *FoundryExtensionScriptInstanceDataPtr;
 typedef FoundryExtensionBool (*FoundryExtensionScriptInstanceSet)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionConstStringNamePtr p_name, FoundryExtensionConstVariantPtr p_value);
 typedef FoundryExtensionBool (*FoundryExtensionScriptInstanceGet)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionConstStringNamePtr p_name, FoundryExtensionVariantPtr r_ret);
 typedef const FoundryExtensionPropertyInfo *(*FoundryExtensionScriptInstanceGetPropertyList)(FoundryExtensionScriptInstanceDataPtr p_instance, uint32_t *r_count);
-typedef void (*FoundryExtensionScriptInstanceFreePropertyList)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionPropertyInfo *p_list); /* Deprecated in Godot 4.3. Use `FoundryExtensionScriptInstanceFreePropertyList2` instead. */
+typedef void (*FoundryExtensionScriptInstanceFreePropertyList)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionPropertyInfo *p_list); /* Deprecated in Foundry 4.3. Use `FoundryExtensionScriptInstanceFreePropertyList2` instead. */
 typedef void (*FoundryExtensionScriptInstanceFreePropertyList2)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionPropertyInfo *p_list, uint32_t p_count);
 typedef FoundryExtensionBool (*FoundryExtensionScriptInstanceGetClassCategory)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionPropertyInfo *p_class_category);
 typedef FoundryExtensionVariantType (*FoundryExtensionScriptInstanceGetPropertyType)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionConstStringNamePtr p_name, FoundryExtensionBool *r_is_valid);
@@ -540,12 +540,12 @@ typedef FoundryExtensionObjectPtr (*FoundryExtensionScriptInstanceGetOwner)(Foun
 typedef void (*FoundryExtensionScriptInstancePropertyStateAdd)(FoundryExtensionConstStringNamePtr p_name, FoundryExtensionConstVariantPtr p_value, void *p_userdata);
 typedef void (*FoundryExtensionScriptInstanceGetPropertyState)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionScriptInstancePropertyStateAdd p_add_func, void *p_userdata);
 typedef const FoundryExtensionMethodInfo *(*FoundryExtensionScriptInstanceGetMethodList)(FoundryExtensionScriptInstanceDataPtr p_instance, uint32_t *r_count);
-typedef void (*FoundryExtensionScriptInstanceFreeMethodList)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionMethodInfo *p_list); /* Deprecated in Godot 4.3. Use `FoundryExtensionScriptInstanceFreeMethodList2` instead. */
+typedef void (*FoundryExtensionScriptInstanceFreeMethodList)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionMethodInfo *p_list); /* Deprecated in Foundry 4.3. Use `FoundryExtensionScriptInstanceFreeMethodList2` instead. */
 typedef void (*FoundryExtensionScriptInstanceFreeMethodList2)(FoundryExtensionScriptInstanceDataPtr p_instance, const FoundryExtensionMethodInfo *p_list, uint32_t p_count);
 typedef FoundryExtensionBool (*FoundryExtensionScriptInstanceHasMethod)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionConstStringNamePtr p_name);
 typedef FoundryExtensionInt (*FoundryExtensionScriptInstanceGetMethodArgumentCount)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionConstStringNamePtr p_name, FoundryExtensionBool *r_is_valid);
 typedef void (*FoundryExtensionScriptInstanceCall)(FoundryExtensionScriptInstanceDataPtr p_self, FoundryExtensionConstStringNamePtr p_method, const FoundryExtensionConstVariantPtr *p_args, FoundryExtensionInt p_argument_count, FoundryExtensionVariantPtr r_return, FoundryExtensionCallError *r_error);
-typedef void (*FoundryExtensionScriptInstanceNotification)(FoundryExtensionScriptInstanceDataPtr p_instance, int32_t p_what); /* Deprecated in Godot 4.2. Use `FoundryExtensionScriptInstanceNotification2` instead. */
+typedef void (*FoundryExtensionScriptInstanceNotification)(FoundryExtensionScriptInstanceDataPtr p_instance, int32_t p_what); /* Deprecated in Foundry 4.2. Use `FoundryExtensionScriptInstanceNotification2` instead. */
 typedef void (*FoundryExtensionScriptInstanceNotification2)(FoundryExtensionScriptInstanceDataPtr p_instance, int32_t p_what, FoundryExtensionBool p_reversed);
 typedef void (*FoundryExtensionScriptInstanceToString)(FoundryExtensionScriptInstanceDataPtr p_instance, FoundryExtensionBool *r_is_valid, FoundryExtensionStringPtr r_out);
 typedef void (*FoundryExtensionScriptInstanceRefCountIncremented)(FoundryExtensionScriptInstanceDataPtr p_instance);
@@ -581,7 +581,7 @@ typedef struct {
 	FoundryExtensionScriptInstanceGet get_fallback_func;
 	FoundryExtensionScriptInstanceGetLanguage get_language_func;
 	FoundryExtensionScriptInstanceFree free_func;
-} FoundryExtensionScriptInstanceInfo; /* Deprecated in Godot 4.2. Use `FoundryExtensionScriptInstanceInfo3` instead. */
+} FoundryExtensionScriptInstanceInfo; /* Deprecated in Foundry 4.2. Use `FoundryExtensionScriptInstanceInfo3` instead. */
 
 typedef struct {
 	FoundryExtensionScriptInstanceSet set_func;
@@ -610,7 +610,7 @@ typedef struct {
 	FoundryExtensionScriptInstanceGet get_fallback_func;
 	FoundryExtensionScriptInstanceGetLanguage get_language_func;
 	FoundryExtensionScriptInstanceFree free_func;
-} FoundryExtensionScriptInstanceInfo2; /* Deprecated in Godot 4.3. Use `FoundryExtensionScriptInstanceInfo3` instead. */
+} FoundryExtensionScriptInstanceInfo2; /* Deprecated in Foundry 4.3. Use `FoundryExtensionScriptInstanceInfo3` instead. */
 
 typedef struct {
 	FoundryExtensionScriptInstanceSet set_func;
@@ -682,21 +682,21 @@ typedef FoundryExtensionInterfaceFunctionPtr (*FoundryExtensionInterfaceGetProcA
  * The FoundryExtension can then modify the r_initialization structure, setting the minimum initialization level,
  * and providing pointers to functions that will be called at various stages of initialization/shutdown.
  *
- * The rest of the FoundryExtension's interface to Godot consists of function pointers that can be loaded
+ * The rest of the FoundryExtension's interface to Foundry consists of function pointers that can be loaded
  * by calling p_get_proc_address("...") with the name of the function.
  *
  * For example:
  *
- *   FoundryExtensionInterfaceGetGodotVersion get_godot_version = (FoundryExtensionInterfaceGetGodotVersion)p_get_proc_address("get_godot_version");
+ *   FoundryExtensionInterfaceGetFoundryVersion get_foundry_version = (FoundryExtensionInterfaceGetFoundryVersion)p_get_proc_address("get_foundry_version");
  *
  * (Note that snippet may cause "cast between incompatible function types" on some compilers, you can
  * silence this by adding an intermediary `void*` cast.)
  *
  * You can then call it like a normal function:
  *
- *   FoundryExtensionGodotVersion godot_version;
- *   get_godot_version(&godot_version);
- *   printf("Godot v%d.%d.%d\n", godot_version.major, godot_version.minor, godot_version.patch);
+ *   FoundryExtensionFoundryVersion foundry_version;
+ *   get_foundry_version(&foundry_version);
+ *   printf("Foundry v%d.%d.%d\n", foundry_version.major, foundry_version.minor, foundry_version.patch);
  *
  * All of these interface functions are described below, together with the name that's used to load it,
  * and the function pointer typedef that shows its signature.
@@ -707,7 +707,7 @@ typedef struct {
 	uint32_t minor;
 	uint32_t patch;
 	const char *string;
-} FoundryExtensionGodotVersion;
+} FoundryExtensionFoundryVersion;
 
 typedef struct {
 	uint32_t major;
@@ -723,9 +723,9 @@ typedef struct {
 	const char *hash;
 	/* Git commit date UNIX timestamp in seconds, or 0 if unavailable. */
 	uint64_t timestamp;
-	/* (e.g. "Godot v3.1.4.stable.official.mono") */
+	/* (e.g. "Foundry v3.1.4.stable.official.mono") */
 	const char *string;
-} FoundryExtensionGodotVersion2;
+} FoundryExtensionFoundryVersion2;
 
 /* Called when starting the main loop. */
 typedef void (*FoundryExtensionMainLoopStartupCallback)();
@@ -734,9 +734,9 @@ typedef void (*FoundryExtensionMainLoopShutdownCallback)();
 /* Called for every frame iteration of the main loop. */
 typedef void (*FoundryExtensionMainLoopFrameCallback)();
 typedef struct {
-	/* Will be called after Godot is started and is fully initialized. */
+	/* Will be called after Foundry is started and is fully initialized. */
 	FoundryExtensionMainLoopStartupCallback startup_func;
-	/* Will be called before Godot is shutdown when it is still fully initialized. */
+	/* Will be called before Foundry is shutdown when it is still fully initialized. */
 	FoundryExtensionMainLoopShutdownCallback shutdown_func;
 	/* Will be called for each process frame. This will run after all `_process()` methods on Node, and before `ScriptServer::frame()`.
 	 * This is intended to be the equivalent of `ScriptLanguage::frame()` for FoundryExtension language bindings that don't use the script API.
@@ -745,30 +745,30 @@ typedef struct {
 } FoundryExtensionMainLoopCallbacks;
 
 /**
- * @name get_godot_version
+ * @name get_foundry_version
  * @since 4.1
- * @deprecated Deprecated in Godot 4.5. Use `get_godot_version2` instead.
+ * @deprecated Deprecated in Foundry 4.5. Use `get_foundry_version2` instead.
  *
- * Gets the Godot version that the FoundryExtension was loaded into.
+ * Gets the Foundry version that the FoundryExtension was loaded into.
  *
- * @param r_godot_version A pointer to the structure to write the version information into.
+ * @param r_foundry_version A pointer to the structure to write the version information into.
  */
-typedef void (*FoundryExtensionInterfaceGetGodotVersion)(FoundryExtensionGodotVersion *r_godot_version);
+typedef void (*FoundryExtensionInterfaceGetFoundryVersion)(FoundryExtensionFoundryVersion *r_foundry_version);
 
 /**
- * @name get_godot_version2
+ * @name get_foundry_version2
  * @since 4.5
  *
- * Gets the Godot version that the FoundryExtension was loaded into.
+ * Gets the Foundry version that the FoundryExtension was loaded into.
  *
- * @param r_godot_version A pointer to the structure to write the version information into.
+ * @param r_foundry_version A pointer to the structure to write the version information into.
  */
-typedef void (*FoundryExtensionInterfaceGetGodotVersion2)(FoundryExtensionGodotVersion2 *r_godot_version);
+typedef void (*FoundryExtensionInterfaceGetFoundryVersion2)(FoundryExtensionFoundryVersion2 *r_foundry_version);
 
 /**
  * @name mem_alloc
  * @since 4.1
- * @deprecated Deprecated in Godot 4.6. Does not allow explicitly requesting padding. Use `mem_alloc2` instead.
+ * @deprecated Deprecated in Foundry 4.6. Does not allow explicitly requesting padding. Use `mem_alloc2` instead.
  *
  * Allocates memory.
  *
@@ -781,7 +781,7 @@ typedef void *(*FoundryExtensionInterfaceMemAlloc)(size_t p_bytes);
 /**
  * @name mem_realloc
  * @since 4.1
- * @deprecated Deprecated in Godot 4.6. Does not allow explicitly requesting padding. Use `mem_realloc2` instead.
+ * @deprecated Deprecated in Foundry 4.6. Does not allow explicitly requesting padding. Use `mem_realloc2` instead.
  *
  * Reallocates memory.
  *
@@ -795,7 +795,7 @@ typedef void *(*FoundryExtensionInterfaceMemRealloc)(void *p_ptr, size_t p_bytes
 /**
  * @name mem_free
  * @since 4.1
- * @deprecated Deprecated in Godot 4.6. Does not allow explicitly requesting padding. Use `mem_free2` instead.
+ * @deprecated Deprecated in Foundry 4.6. Does not allow explicitly requesting padding. Use `mem_free2` instead.
  *
  * Frees memory.
  *
@@ -845,7 +845,7 @@ typedef void (*FoundryExtensionInterfaceMemFree2)(void *p_ptr, FoundryExtensionB
  * @name print_error
  * @since 4.1
  *
- * Logs an error to Godot's built-in debugger and to the OS terminal.
+ * Logs an error to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the error.
  * @param p_function The function name where the error occurred.
@@ -859,7 +859,7 @@ typedef void (*FoundryExtensionInterfacePrintError)(const char *p_description, c
  * @name print_error_with_message
  * @since 4.1
  *
- * Logs an error with a message to Godot's built-in debugger and to the OS terminal.
+ * Logs an error with a message to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the error.
  * @param p_message The message to show along with the error.
@@ -874,7 +874,7 @@ typedef void (*FoundryExtensionInterfacePrintErrorWithMessage)(const char *p_des
  * @name print_warning
  * @since 4.1
  *
- * Logs a warning to Godot's built-in debugger and to the OS terminal.
+ * Logs a warning to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the warning.
  * @param p_function The function name where the warning occurred.
@@ -888,7 +888,7 @@ typedef void (*FoundryExtensionInterfacePrintWarning)(const char *p_description,
  * @name print_warning_with_message
  * @since 4.1
  *
- * Logs a warning with a message to Godot's built-in debugger and to the OS terminal.
+ * Logs a warning with a message to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the warning.
  * @param p_message The message to show along with the warning.
@@ -903,7 +903,7 @@ typedef void (*FoundryExtensionInterfacePrintWarningWithMessage)(const char *p_d
  * @name print_script_error
  * @since 4.1
  *
- * Logs a script error to Godot's built-in debugger and to the OS terminal.
+ * Logs a script error to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the error.
  * @param p_function The function name where the error occurred.
@@ -917,7 +917,7 @@ typedef void (*FoundryExtensionInterfacePrintScriptError)(const char *p_descript
  * @name print_script_error_with_message
  * @since 4.1
  *
- * Logs a script error with a message to Godot's built-in debugger and to the OS terminal.
+ * Logs a script error with a message to Foundry's built-in debugger and to the OS terminal.
  *
  * @param p_description The code triggering the error.
  * @param p_message The message to show along with the error.
@@ -1653,7 +1653,7 @@ typedef void (*FoundryExtensionInterfaceStringNewWithLatin1CharsAndLen)(FoundryE
 /**
  * @name string_new_with_utf8_chars_and_len
  * @since 4.1
- * @deprecated Deprecated in Godot 4.3. Use `string_new_with_utf8_chars_and_len2` instead.
+ * @deprecated Deprecated in Foundry 4.3. Use `string_new_with_utf8_chars_and_len2` instead.
  *
  * Creates a String from a UTF-8 encoded C string with the given length.
  *
@@ -1680,7 +1680,7 @@ typedef FoundryExtensionInt (*FoundryExtensionInterfaceStringNewWithUtf8CharsAnd
 /**
  * @name string_new_with_utf16_chars_and_len
  * @since 4.1
- * @deprecated Deprecated in Godot 4.3. Use `string_new_with_utf16_chars_and_len2` instead.
+ * @deprecated Deprecated in Foundry 4.3. Use `string_new_with_utf16_chars_and_len2` instead.
  *
  * Creates a String from a UTF-16 encoded C string with the given length.
  *
@@ -1961,7 +1961,7 @@ typedef void (*FoundryExtensionInterfaceStringNameNewWithUtf8CharsAndLen)(Foundr
  * @param p_buffer A pointer to the buffer.
  * @param p_size The size of the buffer.
  *
- * @return A Godot error code (ex. OK, ERR_INVALID_DATA, etc).
+ * @return A Foundry error code (ex. OK, ERR_INVALID_DATA, etc).
  *
  * @see XMLParser::open_buffer()
  */
@@ -2348,7 +2348,7 @@ typedef FoundryExtensionVariantPtr (*FoundryExtensionInterfaceArrayOperatorIndex
 /**
  * @name array_ref
  * @since 4.1
- * @deprecated Deprecated in Godot 4.5. Removed from interface. Use copy constructor instead.
+ * @deprecated Deprecated in Foundry 4.5. Removed from interface. Use copy constructor instead.
  *
  * Sets an Array to be a reference to another Array object.
  *
@@ -2580,7 +2580,7 @@ typedef void (*FoundryExtensionInterfaceObjectSetInstance)(FoundryExtensionObjec
  *
  * Gets the class name of an Object.
  *
- * If the FoundryExtension wraps the Godot object in an abstraction specific to its class, this is the
+ * If the FoundryExtension wraps the Foundry object in an abstraction specific to its class, this is the
  * function that should be used to determine which wrapper to use.
  *
  * @param p_object A pointer to the Object.
@@ -2682,7 +2682,7 @@ typedef void (*FoundryExtensionInterfaceRefSetObject)(FoundryExtensionRefPtr p_r
 /**
  * @name script_instance_create
  * @since 4.1
- * @deprecated Deprecated in Godot 4.2. Use `script_instance_create3` instead.
+ * @deprecated Deprecated in Foundry 4.2. Use `script_instance_create3` instead.
  *
  * Creates a script instance that contains the given info and instance data.
  *
@@ -2696,7 +2696,7 @@ typedef FoundryExtensionScriptInstancePtr (*FoundryExtensionInterfaceScriptInsta
 /**
  * @name script_instance_create2
  * @since 4.2
- * @deprecated Deprecated in Godot 4.3. Use `script_instance_create3` instead.
+ * @deprecated Deprecated in Foundry 4.3. Use `script_instance_create3` instead.
  *
  * Creates a script instance that contains the given info and instance data.
  *
@@ -2778,7 +2778,7 @@ typedef void (*FoundryExtensionInterfaceObjectSetScriptInstance)(FoundryExtensio
 /**
  * @name callable_custom_create
  * @since 4.2
- * @deprecated Deprecated in Godot 4.3. Use `callable_custom_create2` instead.
+ * @deprecated Deprecated in Foundry 4.3. Use `callable_custom_create2` instead.
  *
  * Creates a custom Callable object from a function pointer.
  *
@@ -2820,11 +2820,11 @@ typedef void *(*FoundryExtensionInterfaceCallableCustomGetUserData)(FoundryExten
 /**
  * @name classdb_construct_object
  * @since 4.1
- * @deprecated Deprecated in Godot 4.4. Use `classdb_construct_object2` instead.
+ * @deprecated Deprecated in Foundry 4.4. Use `classdb_construct_object2` instead.
  *
  * Constructs an Object of the requested class.
  *
- * The passed class must be a built-in godot class, or an already-registered extension class. In both cases, object_set_instance() should be called to fully initialize the object.
+ * The passed class must be a built-in Foundry class, or an already-registered extension class. In both cases, object_set_instance() should be called to fully initialize the object.
  *
  * @param p_classname A pointer to a StringName with the class name.
  *
@@ -2838,7 +2838,7 @@ typedef FoundryExtensionObjectPtr (*FoundryExtensionInterfaceClassdbConstructObj
  *
  * Constructs an Object of the requested class.
  *
- * The passed class must be a built-in godot class, or an already-registered extension class. In both cases, object_set_instance() should be called to fully initialize the object.
+ * The passed class must be a built-in Foundry class, or an already-registered extension class. In both cases, object_set_instance() should be called to fully initialize the object.
  *
  * "NOTIFICATION_POSTINITIALIZE" must be sent after construction.
  *
@@ -2877,7 +2877,7 @@ typedef void *(*FoundryExtensionInterfaceClassdbGetClassTag)(FoundryExtensionCon
 /**
  * @name classdb_register_extension_class
  * @since 4.1
- * @deprecated Deprecated in Godot 4.2. Use `classdb_register_extension_class5` instead.
+ * @deprecated Deprecated in Foundry 4.2. Use `classdb_register_extension_class5` instead.
  *
  * Registers an extension class in the ClassDB.
  *
@@ -2893,7 +2893,7 @@ typedef void (*FoundryExtensionInterfaceClassdbRegisterExtensionClass)(FoundryEx
 /**
  * @name classdb_register_extension_class2
  * @since 4.2
- * @deprecated Deprecated in Godot 4.3. Use `classdb_register_extension_class5` instead.
+ * @deprecated Deprecated in Foundry 4.3. Use `classdb_register_extension_class5` instead.
  *
  * Registers an extension class in the ClassDB.
  *
@@ -2909,7 +2909,7 @@ typedef void (*FoundryExtensionInterfaceClassdbRegisterExtensionClass2)(FoundryE
 /**
  * @name classdb_register_extension_class3
  * @since 4.3
- * @deprecated Deprecated in Godot 4.4. Use `classdb_register_extension_class5` instead.
+ * @deprecated Deprecated in Foundry 4.4. Use `classdb_register_extension_class5` instead.
  *
  * Registers an extension class in the ClassDB.
  *
@@ -2925,7 +2925,7 @@ typedef void (*FoundryExtensionInterfaceClassdbRegisterExtensionClass3)(FoundryE
 /**
  * @name classdb_register_extension_class4
  * @since 4.4
- * @deprecated Deprecated in Godot 4.5. Use `classdb_register_extension_class5` instead.
+ * @deprecated Deprecated in Foundry 4.5. Use `classdb_register_extension_class5` instead.
  *
  * Registers an extension class in the ClassDB.
  *
@@ -3150,12 +3150,12 @@ typedef void (*FoundryExtensionsInterfaceEditorHelpLoadXmlFromUtf8CharsAndLen)(c
  * @name editor_register_get_classes_used_callback
  * @since 4.5
  *
- * Registers a callback that Godot can call to get the list of all classes (from ClassDB) that may be used by the calling FoundryExtension.
+ * Registers a callback that Foundry can call to get the list of all classes (from ClassDB) that may be used by the calling FoundryExtension.
  *
  * This is used by the editor to generate a build profile (in "Tools" > "Engine Compilation Configuration Editor..." > "Detect from project"),
- * in order to recompile Godot with only the classes used.
+ * in order to recompile Foundry with only the classes used.
  * In the provided callback, the FoundryExtension should provide the list of classes that _may_ be used statically, thus the time of invocation shouldn't matter.
- * If a FoundryExtension doesn't register a callback, Godot will assume that it could be using any classes.
+ * If a FoundryExtension doesn't register a callback, Foundry will assume that it could be using any classes.
  *
  * @param p_library A pointer the library received by the FoundryExtension's entry point function.
  * @param p_callback The callback to retrieve the list of classes used.

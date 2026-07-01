@@ -69,7 +69,7 @@ enum InitOrigin {
     ///
     /// Foundry is creating one of our registered Swift user types and calls back
     /// into Swift to materialize the wrapper and user instance.
-    case gdscript
+    case foundryScript
 }
 
 /// Opaque pointer representing Foundry `Object *`
@@ -474,7 +474,7 @@ public extension _FoundryBridgeable where Self: Wrapped {
         }
     }
 
-    if context.origin == .swift || context.origin == .gdscript {
+    if context.origin == .swift || context.origin == .foundryScript {
         gi.object_set_instance_binding(context.handle, extensionInterface.getLibrary(), unmanaged.toOpaque(), &callbacks)
     }
 }
@@ -1067,10 +1067,10 @@ nonisolated func createFunc(_ userData: UnsafeMutableRawPointer?) -> UnsafeMutab
         }
 
         #if FOUNDRYSWIFT_WITH_MULTI_PROCESS
-        let object = type.init(InitContext(handle: handle, origin: .gdscript))
+        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
         object.wrapper?.strongify()
         #else
-        let object = type.init(InitContext(handle: handle, origin: .gdscript))
+        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
 
         // We are the createFunc, and we have no other owner to this object but ourselves
         // we need to make this a strong reference, or it dies before we return
@@ -1108,10 +1108,10 @@ nonisolated func recreateFunc(_ userData: UnsafeMutableRawPointer?, foundryObjec
             return nil
         }
         #if FOUNDRYSWIFT_WITH_MULTI_PROCESS
-        let object = type.init(InitContext(handle: foundryObjectHandle, origin: .gdscript))
+        let object = type.init(InitContext(handle: foundryObjectHandle, origin: .foundryScript))
         object.wrapper?.strongify()
         #else
-        let object = type.init(InitContext(handle: foundryObjectHandle, origin: .gdscript))
+        let object = type.init(InitContext(handle: foundryObjectHandle, origin: .foundryScript))
 
         // Just like in the createFunc
         // we need to make this a strong reference, or it dies before we return

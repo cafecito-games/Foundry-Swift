@@ -652,7 +652,7 @@ let objectInherits = "Wrapped, _FoundryBridgeable, _FoundryNullableBridgeable"
             public required init(_ context: InitContext) {
                 super.init(context)
 
-                if context.origin == .swift || context.origin == .gdscript {
+                if context.origin == .swift || context.origin == .foundryScript {
                     _ = initRef()
                 }
             }
