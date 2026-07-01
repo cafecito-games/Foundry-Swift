@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  FOUNDRY_SWIFT_RELEASE_XCODE: "26.4.0"
+  FOUNDRY_SWIFT_RELEASE_XCODE: "26.4.1"
 
 jobs:
   prepare:
@@ -87,7 +87,7 @@ jobs:
   stage-package:
     name: Stage generated sources
     needs: prepare
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout FoundrySwift
@@ -135,7 +135,7 @@ jobs:
     needs:
       - prepare
       - stage-package
-    runs-on: macos-latest
+    runs-on: macos-26
     if: ${{ inputs.include_macos_x86 }}
 
     steps:
@@ -200,7 +200,7 @@ jobs:
     needs:
       - prepare
       - stage-package
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout FoundrySwift
@@ -264,7 +264,7 @@ jobs:
     needs:
       - prepare
       - stage-package
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout FoundrySwift
@@ -329,7 +329,7 @@ jobs:
     needs:
       - prepare
       - stage-package
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout FoundrySwift
@@ -396,7 +396,7 @@ jobs:
       - build-ios
       - build-ios-simulator
       - build-arm64
-    runs-on: macos-latest
+    runs-on: macos-26
     if: >-
       ${{ !cancelled()
       && needs.prepare.result == 'success'
