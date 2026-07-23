@@ -4,7 +4,7 @@
 
 **Goal:** Make FoundrySwift extensions initialize under Foundry v0.1.0-alpha.7 and publish synchronized source, addon, and SwiftPM binary artifacts.
 
-**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace the deprecated alpha.7 interface names and callback signatures in the hand-written runtime, synchronize the checked-in generated API artifacts with the official alpha.7 API package, and align the code-generation and headless-runner commands with alpha.7's CLI. Carry the post-initialize requirement through `InitContext` so every newly constructed `Object` sends `NOTIFICATION_POSTINITIALIZE`, while wrappers around existing engine objects do not. Validate at unit, package, and headless extension-load levels.
+**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace the deprecated alpha.7 interface names and callback signatures in the hand-written runtime, synchronize the checked-in generated API artifacts with the official alpha.7 API package, and align the code-generation and headless-runner commands with alpha.7's CLI. Send post-initialize only after concrete wrapper construction completes; custom `InitContext` constructors use an explicit completion helper, while wrappers around existing engine objects do not notify. Validate at unit, package, and headless extension-load levels.
 
 **Tech Stack:** Swift 6.3, SwiftPM/XCTest, Foundry extension C interface, Task, GitHub Actions release workflow, Foundry v0.1.0-alpha.7.
 

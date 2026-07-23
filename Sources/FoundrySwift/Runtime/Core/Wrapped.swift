@@ -79,13 +79,6 @@ public typealias FoundryNativeObjectPointer = UnsafeMutableRawPointer
 public struct InitContext {
     let handle: FoundryNativeObjectPointer
     let origin: InitOrigin
-    let postinitialize: Bool
-
-    init(handle: FoundryNativeObjectPointer, origin: InitOrigin, postinitialize: Bool = false) {
-        self.handle = handle
-        self.origin = origin
-        self.postinitialize = postinitialize
-    }
 
     /// Creates a new object of the specified className and returns an InitContext that you can
     /// use to call your constructor
@@ -94,7 +87,16 @@ public struct InitContext {
         guard let nativeHandle = gi.classdb_construct_object(&copy.content) else {
             return nil
         }
-        return InitContext(handle: nativeHandle, origin: .swift, postinitialize: true)
+        return InitContext(handle: nativeHandle, origin: .swift)
+    }
+
+    /// Completes initialization for an object created with ``createObject(className:)``.
+    /// Call this after `super.init(context)` in a custom initializer.
+    @MainActor public func postinitialize(_ object: Wrapped) {
+        guard let object = object as? Object else {
+            fatalError("FoundrySwift.InitContext: registered type is not an Object")
+        }
+        object.notification(what: Int32(Object.notificationPostinitialize))
     }
 }
 
@@ -360,9 +362,6 @@ open class Wrapped {
         #else
         bindSwiftObject(self, toFoundry: context.handle)
         #endif
-        if context.postinitialize, let object = self as? Object {
-            object.notification(what: Int32(Object.notificationPostinitialize))
-        }
     }
     
     /// This property indicates if the instance is valid or not.
@@ -439,7 +438,11 @@ public extension _FoundryBridgeable where Self: Wrapped {
             fatalError("SWIFT: It was not possible to construct a \(Self.foundryClassName.description)")
         }
 
-        self.init(InitContext(handle: nativeHandle, origin: .swift, postinitialize: true))
+        self.init(InitContext(handle: nativeHandle, origin: .swift))
+        guard let object = self as? Object else {
+            fatalError("FoundrySwift: constructed type is not an Object")
+        }
+        object.notification(what: Int32(Object.notificationPostinitialize))
     }
 
     /// Delicate API.
@@ -1084,12 +1087,10 @@ nonisolated func createFunc(
         }
 
         #if FOUNDRYSWIFT_WITH_MULTI_PROCESS
-        let object = type.init(InitContext(handle: handle, origin: .foundryScript,
-                                           postinitialize: notifyPostinitialize != 0))
+        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
         object.wrapper?.strongify()
         #else
-        let object = type.init(InitContext(handle: handle, origin: .foundryScript,
-                                           postinitialize: notifyPostinitialize != 0))
+        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
 
         // We are the createFunc, and we have no other owner to this object but ourselves
         // we need to make this a strong reference, or it dies before we return
@@ -1099,6 +1100,13 @@ nonisolated func createFunc(
 
         wrapper.strongify()
         #endif
+
+        if notifyPostinitialize != 0 {
+            guard let object = object as? Object else {
+                fatalError("FoundrySwift.createFunc: registered type is not an Object")
+            }
+            object.notification(what: Int32(Object.notificationPostinitialize))
+        }
 
         return Int(bitPattern: handle)
     }
