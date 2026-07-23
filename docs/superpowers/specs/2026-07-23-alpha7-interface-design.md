@@ -6,7 +6,7 @@ FoundrySwift 0.1.0-alpha.1 loads extension interface functions removed or replac
 
 ## Design
 
-Refresh the checked-in extension API artifacts from the official Foundry v0.1.0-alpha.7 API package. Update the hand-written runtime interface to load `mem_alloc2`, `mem_realloc2`, `mem_free2`, `classdb_construct_object2`, `classdb_register_extension_class5`, and `callable_custom_create2`. Adapt the affected callback structs to alpha.7's added arguments and preserve the public Swift allocator behavior: callers continue to allocate, reallocate, and free through the existing `gmem_*` helpers.
+Refresh the checked-in extension API artifacts from the official Foundry v0.1.0-alpha.7 API package. Update the hand-written runtime interface to load `mem_alloc2`, `mem_realloc2`, `mem_free2`, `classdb_construct_object2`, `classdb_register_extension_class5`, and `callable_custom_create2`. Adapt the affected callback structs to alpha.7's added arguments and preserve the public Swift allocator behavior: callers continue to allocate, reallocate, and free through the existing `gmem_*` helpers. Because `classdb_construct_object2` creates objects without post-initialization, carry an explicit post-initialize flag through `InitContext` and send `Object.notificationPostinitialize` for newly constructed objects, including direct Swift and engine callback construction.
 
 The generated C declarations and Swift-imported types remain the source of truth for the alpha.7 function signatures. No compatibility fallback is needed because the release targets the current Foundry alpha.7 engine and loading the removed names is the failure being fixed.
 
@@ -17,6 +17,8 @@ The generated C declarations and Swift-imported types remain the source of truth
 3. The resulting `FoundryInterface` stores the typed function pointers.
 4. `FoundryMemoryInterface.swift` calls those pointers with the existing allocation semantics and zero pre-padding.
 5. The extension proceeds through registration and can be exercised by the FoundrySwift test runner.
+
+For objects created through `classdb_construct_object2`, Swift sends `NOTIFICATION_POSTINITIALIZE` after the wrapper has been bound. Existing Foundry-originated wrappers are marked separately and are not notified a second time.
 
 The API refresh also keeps `extension_api.json`, `foundry_extension_interface.json`, and `foundry_extension_interface.h` synchronized with the exact engine release used for validation, so code generation and downstream binary artifacts are reproducible.
 

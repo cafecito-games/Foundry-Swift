@@ -4,7 +4,7 @@
 
 **Goal:** Make FoundrySwift extensions initialize under Foundry v0.1.0-alpha.7 and publish synchronized source, addon, and SwiftPM binary artifacts.
 
-**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace the deprecated alpha.7 interface names and callback signatures in the hand-written runtime, synchronize the checked-in generated API artifacts with the official alpha.7 API package, and align the code-generation and headless-runner commands with alpha.7's CLI. Validate at unit, package, and headless extension-load levels.
+**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace the deprecated alpha.7 interface names and callback signatures in the hand-written runtime, synchronize the checked-in generated API artifacts with the official alpha.7 API package, and align the code-generation and headless-runner commands with alpha.7's CLI. Carry the post-initialize requirement through `InitContext` so every newly constructed `Object` sends `NOTIFICATION_POSTINITIALIZE`, while wrappers around existing engine objects do not. Validate at unit, package, and headless extension-load levels.
 
 **Tech Stack:** Swift 6.3, SwiftPM/XCTest, Foundry extension C interface, Task, GitHub Actions release workflow, Foundry v0.1.0-alpha.7.
 
@@ -207,7 +207,7 @@ task test:release
 
 Expected: every release helper test prints its success line and exits 0.
 
-- [ ] **Step 3: Build the test extension and run it with the official alpha.7 editor**
+- [x] **Step 3: Build the test extension and run it with the official alpha.7 editor**
 
 Download and unpack the official macOS universal alpha.7 editor, then use the repository's existing Foundry test runner flow. Run the complete FoundrySwift test runner and confirm the extension reaches the runner instead of aborting during interface loading:
 
@@ -222,9 +222,9 @@ foundry_bin=$(find "$foundry_dir/unpacked" -type f -name foundry -perm -111 -pri
 FOUNDRY_BIN="$foundry_bin" task test:foundry
 ```
 
-Expected: the runner starts and reports its test result without a deprecated-interface fatal error or signal 5 abort.
+Expected: the runner starts and reports its test result without a deprecated-interface fatal error or signal 5 abort. Verified with 49 suites and 450 passed tests.
 
-- [ ] **Step 4: Review the complete diff and commit any verification-only corrections**
+- [x] **Step 4: Review the complete diff and commit any verification-only corrections**
 
 ```bash
 git diff origin/main...HEAD --stat
@@ -232,7 +232,7 @@ git diff --check
 git status --short
 ```
 
-Expected: only the approved spec, plan, regression test, runtime fix, alpha.7 API artifacts, generator filters, Taskfile commands, and test-runner command are changed.
+Expected: only the approved spec, plan, regression test, runtime fix, alpha.7 API artifacts, generator filters, Taskfile commands, and test-runner command are changed. The lifecycle correction is contained in `Wrapped.swift`.
 
 ### Task 5: Prepare the release and handoff
 
