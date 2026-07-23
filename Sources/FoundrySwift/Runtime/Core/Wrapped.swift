@@ -1052,10 +1052,10 @@ nonisolated func unreferenceFunc(_ userData: UnsafeMutableRawPointer) {
 /// to instantiate it.   Notice that this is different that direct instantiation from our API
 nonisolated func createFunc(
     _ userData: UnsafeMutableRawPointer?,
-    _: UInt8
+    _ notifyPostinitialize: UInt8
 ) -> UnsafeMutableRawPointer? {
     let userDataInt = userData.map { Int(bitPattern: $0) }
-    let handleInt: Int? = MainActor.assumeIsolated {
+    let handleInt: Int? = MainActor.assumeIsolated { () -> Int? in
         //print ("SWIFT: Creating object userData:\(String(describing: userData))")
         guard let userDataInt else {
             print ("FoundrySwift.createFunc: Got a nil userData")
@@ -1087,6 +1087,13 @@ nonisolated func createFunc(
 
         wrapper.strongify()
         #endif
+
+        if notifyPostinitialize != 0 {
+            guard let object = object as? Object else {
+                fatalError("FoundrySwift.createFunc: registered type is not an Object")
+            }
+            object.notification(what: Int32(Object.notificationPostinitialize))
+        }
 
         return Int(bitPattern: handle)
     }
