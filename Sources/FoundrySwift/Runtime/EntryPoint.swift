@@ -199,9 +199,9 @@ func toCallErrorType(_ foundryCallError: FoundryExtensionCallErrorType) -> CallE
 }
 
 @_spi(FoundrySwiftRuntimePrivate) public struct FoundryInterface {
-    public let  mem_alloc: FoundryExtensionInterfaceMemAlloc
-    public let  mem_realloc: FoundryExtensionInterfaceMemRealloc
-    public let  mem_free: FoundryExtensionInterfaceMemFree
+    public let  mem_alloc2: FoundryExtensionInterfaceMemAlloc2
+    public let  mem_realloc2: FoundryExtensionInterfaceMemRealloc2
+    public let  mem_free2: FoundryExtensionInterfaceMemFree2
 
     public let  print_error: FoundryExtensionInterfacePrintError
     public let  print_error_with_message: FoundryExtensionInterfacePrintErrorWithMessage
@@ -363,9 +363,9 @@ func loadFoundryInterface(_ foundryGetProcAddrPtr: FoundryExtensionInterfaceGetP
     }
 
     gi = FoundryInterface(
-        mem_alloc: load("mem_alloc"),
-        mem_realloc: load("mem_realloc"),
-        mem_free: load("mem_free"),
+        mem_alloc2: load("mem_alloc2"),
+        mem_realloc2: load("mem_realloc2"),
+        mem_free2: load("mem_free2"),
 
         print_error: load("print_error"),
         print_error_with_message: load("print_error_with_message"),

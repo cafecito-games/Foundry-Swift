@@ -6,15 +6,15 @@
 //
 
 func gmem_alloc (_ size: Int) -> UnsafeMutableRawPointer? {
-    gi.mem_alloc (size)
+    gi.mem_alloc2 (size, 0)
 }
 
 func gmem_realloc (_ ptr: UnsafeMutableRawPointer?, size: Int) -> UnsafeMutableRawPointer? {
-    return gi.mem_realloc (ptr, size)
+    return gi.mem_realloc2 (ptr, size, 0)
 }
 
 func gmem_free (_ ptr: UnsafeMutableRawPointer?) {
-    return gi.mem_free (ptr)
+    return gi.mem_free2 (ptr, 0)
 }
 
 func gprintError (_ description: String, message: String? = nil, function: String, file: String, line: Int32, editorNotify: Bool) {
