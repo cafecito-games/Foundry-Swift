@@ -46,7 +46,7 @@ tasks:
 
         (
           cd "$tmp_dir"
-          "$foundry_bin" --headless --dump-extension-api-with-docs
+          "$foundry_bin" --headless docs generate-api --include-docs
         )
 
         mkdir -p "$(dirname "$OUTPUT")"
@@ -75,7 +75,7 @@ tasks:
 
         (
           cd "$tmp_dir"
-          "$foundry_bin" --headless --dump-foundryextension-interface
+          "$foundry_bin" --headless extension dump-interface --format header
         )
 
         mkdir -p "$(dirname "$OUTPUT")"
@@ -104,7 +104,7 @@ tasks:
 
         (
           cd "$tmp_dir"
-          "$foundry_bin" --headless --dump-foundryextension-interface-json
+          "$foundry_bin" --headless extension dump-interface --format json
         )
 
         mkdir -p "$(dirname "$OUTPUT")"

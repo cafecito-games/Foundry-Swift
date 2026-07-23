@@ -184,7 +184,9 @@ struct FoundrySwiftTestRunner {
         print("\n[4/5] Running tests in Foundry...")
         let foundryProcess = Process()
         foundryProcess.executableURL = URL(fileURLWithPath: foundryPath)
-        foundryProcess.arguments = ["--headless", "--verbose", "--path", absoluteProjectPath]
+        foundryProcess.arguments = [
+            "--headless", "--verbose", "project", "run", "--project", absoluteProjectPath
+        ]
         foundryProcess.currentDirectoryURL = URL(fileURLWithPath: absoluteProjectPath)
         foundryProcess.standardOutput = FileHandle.standardOutput
         foundryProcess.standardError = FileHandle.standardError

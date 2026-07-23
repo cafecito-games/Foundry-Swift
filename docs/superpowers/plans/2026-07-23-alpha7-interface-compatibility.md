@@ -4,7 +4,7 @@
 
 **Goal:** Make FoundrySwift extensions initialize under Foundry v0.1.0-alpha.7 and publish synchronized source, addon, and SwiftPM binary artifacts.
 
-**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace only the deprecated memory function names and signatures in the hand-written runtime, then synchronize the checked-in generated API artifacts with the official alpha.7 API package. Validate at unit, package, and headless extension-load levels.
+**Architecture:** Keep the existing dynamic proc-address loader and public memory helper API. Replace the deprecated alpha.7 interface names and callback signatures in the hand-written runtime, synchronize the checked-in generated API artifacts with the official alpha.7 API package, and align the code-generation and headless-runner commands with alpha.7's CLI. Validate at unit, package, and headless extension-load levels.
 
 **Tech Stack:** Swift 6.3, SwiftPM/XCTest, Foundry extension C interface, Task, GitHub Actions release workflow, Foundry v0.1.0-alpha.7.
 
@@ -15,9 +15,9 @@
 **Files:**
 - Create: `Tests/FoundrySwiftUniversalTests/EntryPointTests.swift`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create an XCTest that calls the internal loader with a C-compatible fake proc-address provider. The provider returns `nil` for the removed `mem_alloc`, `mem_realloc`, and `mem_free` names and a non-null sentinel for every other requested symbol, including alpha.7's `mem_alloc2`, `mem_realloc2`, and `mem_free2` names. The test must assert that the global interface was initialized:
+Create an XCTest that calls the internal loader with a C-compatible fake proc-address provider. The provider returns `nil` for all six deprecated names and a non-null sentinel for every other requested symbol, including alpha.7's replacement names. The test must assert that the memory replacements were requested and the deprecated names were not:
 
 ```swift
 import XCTest
@@ -25,54 +25,73 @@ import FoundryExtensionC
 @testable import FoundrySwift
 
 final class EntryPointTests: XCTestCase {
-    func testLoadsAlpha7InterfaceWithoutDeprecatedMemoryFunctions() {
-        let procAddress = unsafeBitCast(
-            alpha7ProcAddress,
-            to: FoundryExtensionInterfaceGetProcAddress.self
-        )
-
+    func testLoadsAlpha7InterfaceWithoutDeprecatedFunctions() {
+        requestedSymbols.removeAll()
+        let procAddress: FoundryExtensionInterfaceGetProcAddress = alpha7ProcAddress
         loadFoundryInterface(procAddress)
-
-        XCTAssertNotNil(gi)
+        XCTAssertEqual(
+            requestedSymbols.filter { $0.hasPrefix("mem_") },
+            ["mem_alloc2", "mem_realloc2", "mem_free2"]
+        )
+        XCTAssertFalse(requestedSymbols.contains {
+            [
+                "callable_custom_create",
+                "classdb_construct_object",
+                "classdb_register_extension_class2",
+            ].contains($0)
+        })
     }
 }
 
-private func alpha7ProcAddress(_ name: UnsafePointer<CChar>?) -> UnsafeMutableRawPointer? {
+private nonisolated(unsafe) var requestedSymbols = [String]()
+
+private func alpha7ProcAddress(_ name: UnsafePointer<CChar>?) -> FoundryExtensionInterfaceFunctionPtr? {
     guard let name else { return nil }
     let symbol = String(cString: name)
-    if symbol == "mem_alloc" || symbol == "mem_realloc" || symbol == "mem_free" {
+    requestedSymbols.append(symbol)
+    if [
+        "mem_alloc",
+        "mem_realloc",
+        "mem_free",
+        "callable_custom_create",
+        "classdb_construct_object",
+        "classdb_register_extension_class2",
+    ].contains(symbol) {
         return nil
     }
-    return UnsafeMutableRawPointer(bitPattern: 1)
+    return alpha7Sentinel
 }
+
+private func alpha7Sentinel() {}
 ```
 
-- [ ] **Step 2: Run the focused test to verify it fails**
+- [x] **Step 2: Run the focused test to verify it fails**
 
 Run:
 
 ```bash
-swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedMemoryFunctions
+swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedFunctions
 ```
 
 Expected: the test process fails during `loadFoundryInterface` with the existing fatal error for `mem_alloc`, proving the test models the reported alpha.7 crash.
 
-- [ ] **Step 3: Commit the failing test**
+- [x] **Step 3: Commit the failing test**
 
 ```bash
 git add Tests/FoundrySwiftUniversalTests/EntryPointTests.swift
 git commit -m "test: reproduce alpha7 interface loader crash"
 ```
 
-### Task 2: Update the runtime loader and memory helpers
+### Task 2: Update the runtime loader, callbacks, and memory helpers
 
 **Files:**
 - Modify: `Sources/FoundrySwift/Runtime/EntryPoint.swift:201-204,365-368`
 - Modify: `Sources/FoundrySwift/Runtime/FoundryMemoryInterface.swift:8-18`
+- Modify: `Sources/FoundrySwift/Runtime/Core/Wrapped.swift`
 
-- [ ] **Step 1: Store and load the alpha.7 memory functions**
+- [x] **Step 1: Store and load the alpha.7 memory functions**
 
-Rename the three `FoundryInterface` stored properties and their loader entries to the imported alpha.7 types and symbols:
+Rename the deprecated `FoundryInterface` stored properties and loader entries to the imported alpha.7 types and symbols:
 
 ```swift
 public let mem_alloc2: FoundryExtensionInterfaceMemAlloc2
@@ -86,7 +105,9 @@ mem_realloc2: load("mem_realloc2"),
 mem_free2: load("mem_free2"),
 ```
 
-- [ ] **Step 2: Preserve the existing allocator semantics with no pre-padding**
+Use `classdb_construct_object2`, `classdb_register_extension_class5`, and `callable_custom_create2`; pass alpha.7's callback hash, post-initialize flag, and callable argument-count fields through the imported callback types.
+
+- [x] **Step 2: Preserve the existing allocator semantics with no pre-padding**
 
 Call the new functions with `0` for `p_prepad_align`, matching the old functions' behavior:
 
@@ -104,17 +125,17 @@ func gmem_free (_ ptr: UnsafeMutableRawPointer?) {
 }
 ```
 
-- [ ] **Step 3: Run the regression test to verify it passes**
+- [x] **Step 3: Run the regression test to verify it passes**
 
 Run:
 
 ```bash
-swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedMemoryFunctions
+swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedFunctions
 ```
 
 Expected: PASS, with no fatal error for the omitted deprecated names.
 
-- [ ] **Step 4: Commit the runtime fix**
+- [x] **Step 4: Commit the runtime fix**
 
 ```bash
 git add Sources/FoundrySwift/Runtime/EntryPoint.swift Sources/FoundrySwift/Runtime/FoundryMemoryInterface.swift
@@ -128,7 +149,7 @@ git commit -m "fix: load alpha7 memory interface"
 - Modify: `Sources/ExtensionApi/foundry_extension_interface.json`
 - Modify: `Sources/FoundryExtension/include/foundry_extension_interface.h`
 
-- [ ] **Step 1: Download the official alpha.7 API package**
+- [x] **Step 1: Download the official alpha.7 API package**
 
 Run:
 
@@ -141,11 +162,11 @@ gh release download v0.1.0-alpha.7 \
 unzip -o "$api_dir/Foundry_v0.1.0-alpha.7_api.zip" -d "$api_dir/unpacked"
 ```
 
-- [ ] **Step 2: Replace the generated artifacts from the release package**
+- [x] **Step 2: Replace the generated artifacts from the release package**
 
 Copy the package's `extension_api.json`, `foundry_extension_interface.json`, and `foundry_extension_interface.h` into the three checked-in paths. Confirm the copied API metadata identifies the alpha.7 engine build and that the header registers the `mem_alloc2` declarations.
 
-- [ ] **Step 3: Run code generation validation**
+- [x] **Step 3: Run code generation validation**
 
 Run:
 
@@ -156,7 +177,7 @@ git diff --check
 
 Expected: code generation succeeds without source edits after generation, and the diff has no whitespace errors.
 
-- [ ] **Step 4: Commit the synchronized API artifacts**
+- [x] **Step 4: Commit the synchronized API artifacts**
 
 ```bash
 git add Sources/ExtensionApi/extension_api.json \
@@ -170,7 +191,7 @@ git commit -m "build: sync Foundry alpha7 extension API"
 **Files:**
 - Modify: none unless a test or fixture exposes an intentional alpha.7 compatibility issue
 
-- [ ] **Step 1: Run all Swift unit tests**
+- [x] **Step 1: Run all Swift unit tests**
 
 ```bash
 swift test
@@ -178,7 +199,7 @@ swift test
 
 Expected: exit 0 with all XCTest cases passing.
 
-- [ ] **Step 2: Run release helper checks**
+- [x] **Step 2: Run release helper checks**
 
 ```bash
 task test:release
@@ -201,7 +222,7 @@ foundry_bin=$(find "$foundry_dir/unpacked" -type f -name foundry -perm -111 -pri
 FOUNDRY_BIN="$foundry_bin" task test:foundry
 ```
 
-Expected: the runner starts and reports its test result without a `mem_alloc` fatal error or signal 5 abort.
+Expected: the runner starts and reports its test result without a deprecated-interface fatal error or signal 5 abort.
 
 - [ ] **Step 4: Review the complete diff and commit any verification-only corrections**
 
@@ -211,7 +232,7 @@ git diff --check
 git status --short
 ```
 
-Expected: only the approved spec, plan, regression test, runtime fix, and alpha.7 API artifacts are changed.
+Expected: only the approved spec, plan, regression test, runtime fix, alpha.7 API artifacts, generator filters, Taskfile commands, and test-runner command are changed.
 
 ### Task 5: Prepare the release and handoff
 
@@ -226,7 +247,7 @@ Run the repository's complete Swift build and release helper suite, then repeat 
 swift build --build-tests
 swift test
 task test:release
-swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedMemoryFunctions
+swift test --filter EntryPointTests/testLoadsAlpha7InterfaceWithoutDeprecatedFunctions
 ```
 
 - [ ] **Step 2: Commit the final implementation state**

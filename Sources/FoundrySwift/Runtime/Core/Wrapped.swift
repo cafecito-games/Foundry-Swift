@@ -546,7 +546,11 @@ func register<T: Object>(type name: StringName, parent: StringName, type: T.Type
         duplicateClassNameDetected(name, type)
     }
 
-    nonisolated func getVirtual(_ userData: UnsafeMutableRawPointer?, _ name: FoundryExtensionConstStringNamePtr?) ->  FoundryExtensionClassCallVirtual? {
+    nonisolated func getVirtual(
+        _ userData: UnsafeMutableRawPointer?,
+        _ name: FoundryExtensionConstStringNamePtr?,
+        _: UInt32
+    ) -> FoundryExtensionClassCallVirtual? {
         let userDataInt = userData.map { Int(bitPattern: $0) }
         let nameInt = name.map { Int(bitPattern: $0) }
         return MainActor.assumeIsolated {
@@ -562,8 +566,8 @@ func register<T: Object>(type name: StringName, parent: StringName, type: T.Type
         }
     }
     
-    var info = FoundryExtensionClassCreationInfo2 ()
-    info.create_instance_func = createFunc(_:)
+    var info = FoundryExtensionClassCreationInfo5 ()
+    info.create_instance_func = createFunc
     info.free_instance_func = freeFunc(_:_:)
     info.get_virtual_func = getVirtual
     info.notification_func = notificationFunc
@@ -1046,7 +1050,10 @@ nonisolated func unreferenceFunc(_ userData: UnsafeMutableRawPointer) {
 ///
 /// This one is invoked by Foundry when an instance of one of our types is created, and we need
 /// to instantiate it.   Notice that this is different that direct instantiation from our API
-nonisolated func createFunc(_ userData: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
+nonisolated func createFunc(
+    _ userData: UnsafeMutableRawPointer?,
+    _: UInt8
+) -> UnsafeMutableRawPointer? {
     let userDataInt = userData.map { Int(bitPattern: $0) }
     let handleInt: Int? = MainActor.assumeIsolated {
         //print ("SWIFT: Creating object userData:\(String(describing: userData))")
@@ -1498,7 +1505,7 @@ struct CallableWrapper {
         let wrapperPtr = UnsafeMutablePointer<Self>.allocate(capacity: 1)
         wrapperPtr.initialize(to: Self(function: function))
         
-        var cci = FoundryExtensionCallableCustomInfo(
+        var cci = FoundryExtensionCallableCustomInfo2(
             callable_userdata: wrapperPtr,
             token: extensionInterface.getLibrary(),
             object_id: 0,
@@ -1508,7 +1515,8 @@ struct CallableWrapper {
             hash_func: nil,
             equal_func: nil,
             less_than_func: nil,
-            to_string_func: nil)
+            to_string_func: nil,
+            get_argument_count_func: nil)
         var content: Callable.ContentType = Callable.zero
         gi.callable_custom_create(&content, &cci);
         return content
