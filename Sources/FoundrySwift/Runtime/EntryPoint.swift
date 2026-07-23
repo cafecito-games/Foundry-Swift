@@ -199,9 +199,9 @@ func toCallErrorType(_ foundryCallError: FoundryExtensionCallErrorType) -> CallE
 }
 
 @_spi(FoundrySwiftRuntimePrivate) public struct FoundryInterface {
-    public let  mem_alloc: FoundryExtensionInterfaceMemAlloc
-    public let  mem_realloc: FoundryExtensionInterfaceMemRealloc
-    public let  mem_free: FoundryExtensionInterfaceMemFree
+    public let  mem_alloc2: FoundryExtensionInterfaceMemAlloc2
+    public let  mem_realloc2: FoundryExtensionInterfaceMemRealloc2
+    public let  mem_free2: FoundryExtensionInterfaceMemFree2
 
     public let  print_error: FoundryExtensionInterfacePrintError
     public let  print_error_with_message: FoundryExtensionInterfacePrintErrorWithMessage
@@ -215,10 +215,10 @@ func toCallErrorType(_ foundryCallError: FoundryExtensionCallErrorType) -> CallE
 
     public let  get_native_struct_size: FoundryExtensionInterfaceGetNativeStructSize
 
-    public let  classdb_construct_object: FoundryExtensionInterfaceClassdbConstructObject
+    public let  classdb_construct_object: FoundryExtensionInterfaceClassdbConstructObject2
     public let  classdb_get_method_bind: FoundryExtensionInterfaceClassdbGetMethodBind
     public let  classdb_get_class_tag: FoundryExtensionInterfaceClassdbGetClassTag
-    public let  classdb_register_extension_class: FoundryExtensionInterfaceClassdbRegisterExtensionClass2
+    public let  classdb_register_extension_class: FoundryExtensionInterfaceClassdbRegisterExtensionClass5
     public let  classdb_register_extension_class_signal: FoundryExtensionInterfaceClassdbRegisterExtensionClassSignal
     public let  classdb_register_extension_class_method: FoundryExtensionInterfaceClassdbRegisterExtensionClassMethod
     public let  classdb_register_extension_class_property: FoundryExtensionInterfaceClassdbRegisterExtensionClassProperty
@@ -328,7 +328,7 @@ func toCallErrorType(_ foundryCallError: FoundryExtensionCallErrorType) -> CallE
     public let  packed_vector4_array_operator_index: FoundryExtensionInterfacePackedVector4ArrayOperatorIndex?
     public let  packed_vector4_array_operator_index_const: FoundryExtensionInterfacePackedVector4ArrayOperatorIndexConst?
 
-    public let  callable_custom_create: FoundryExtensionInterfaceCallableCustomCreate
+    public let  callable_custom_create: FoundryExtensionInterfaceCallableCustomCreate2
 
     public let  editor_add_plugin: FoundryExtensionInterfaceEditorAddPlugin
     public let  editor_remove_plugin: FoundryExtensionInterfaceEditorRemovePlugin
@@ -363,9 +363,9 @@ func loadFoundryInterface(_ foundryGetProcAddrPtr: FoundryExtensionInterfaceGetP
     }
 
     gi = FoundryInterface(
-        mem_alloc: load("mem_alloc"),
-        mem_realloc: load("mem_realloc"),
-        mem_free: load("mem_free"),
+        mem_alloc2: load("mem_alloc2"),
+        mem_realloc2: load("mem_realloc2"),
+        mem_free2: load("mem_free2"),
 
         print_error: load("print_error"),
         print_error_with_message: load("print_error_with_message"),
@@ -380,11 +380,11 @@ func loadFoundryInterface(_ foundryGetProcAddrPtr: FoundryExtensionInterfaceGetP
 
         get_native_struct_size: load("get_native_struct_size"),
 
-        classdb_construct_object: load("classdb_construct_object"),
+        classdb_construct_object: load("classdb_construct_object2"),
         classdb_get_method_bind: load("classdb_get_method_bind"),
         classdb_get_class_tag: load("classdb_get_class_tag"),
 
-        classdb_register_extension_class: load("classdb_register_extension_class2"),
+        classdb_register_extension_class: load("classdb_register_extension_class5"),
         classdb_register_extension_class_signal: load("classdb_register_extension_class_signal"),
         classdb_register_extension_class_method: load("classdb_register_extension_class_method"),
         classdb_register_extension_class_property: load("classdb_register_extension_class_property"),
@@ -461,7 +461,7 @@ func loadFoundryInterface(_ foundryGetProcAddrPtr: FoundryExtensionInterfaceGetP
         packed_vector4_array_operator_index: loadOptional("packed_vector4_array_operator_index"),
         packed_vector4_array_operator_index_const: loadOptional("packed_vector4_array_operator_index_const"),
 
-        callable_custom_create: load("callable_custom_create"),
+        callable_custom_create: load("callable_custom_create2"),
         editor_add_plugin: load("editor_add_plugin"),
         editor_remove_plugin: load("editor_remove_plugin"),
 

@@ -236,6 +236,7 @@ class MyDemo: RefCounted {
     required init(_ context: InitContext) {
 	name = "My Name:
         super.init(context)
+        context.postinitialize(self)
     }
 
     // Custom initializer
@@ -245,6 +246,7 @@ class MyDemo: RefCounted {
             fatalError("Could not create object")
         }
         super.init(ctxt)
+        ctxt.postinitialize(self)
     }
 }
 ```

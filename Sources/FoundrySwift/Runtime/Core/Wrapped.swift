@@ -75,10 +75,25 @@ enum InitOrigin {
 /// Opaque pointer representing Foundry `Object *`
 public typealias FoundryNativeObjectPointer = UnsafeMutableRawPointer
 
+fileprivate final class InitContextPostinitializeState {
+    var didPostinitialize = false
+}
+
 /// Just pass it to `super.init`.
 public struct InitContext {
     let handle: FoundryNativeObjectPointer
     let origin: InitOrigin
+    private let postinitializeState: InitContextPostinitializeState
+
+    fileprivate init(
+        handle: FoundryNativeObjectPointer,
+        origin: InitOrigin,
+        postinitializeState: InitContextPostinitializeState = InitContextPostinitializeState())
+    {
+        self.handle = handle
+        self.origin = origin
+        self.postinitializeState = postinitializeState
+    }
 
     /// Creates a new object of the specified className and returns an InitContext that you can
     /// use to call your constructor
@@ -88,6 +103,27 @@ public struct InitContext {
             return nil
         }
         return InitContext(handle: nativeHandle, origin: .swift)
+    }
+
+    /// Completes initialization for an object created with ``createObject(className:)``.
+    /// Call this after `super.init(context)` in a custom initializer.
+    @MainActor public func postinitialize(_ object: Wrapped) {
+        guard case .swift = origin else {
+            return
+        }
+        postinitializeIfNeeded(object)
+    }
+
+    @MainActor
+    func postinitializeIfNeeded(_ object: Wrapped) {
+        guard !postinitializeState.didPostinitialize else {
+            return
+        }
+        guard let object = object as? Object else {
+            fatalError("FoundrySwift.InitContext: registered type is not an Object")
+        }
+        postinitializeState.didPostinitialize = true
+        object.notification(what: Int32(Object.notificationPostinitialize))
     }
 }
 
@@ -429,7 +465,9 @@ public extension _FoundryBridgeable where Self: Wrapped {
             fatalError("SWIFT: It was not possible to construct a \(Self.foundryClassName.description)")
         }
 
-        self.init(InitContext(handle: nativeHandle, origin: .swift))
+        let context = InitContext(handle: nativeHandle, origin: .swift)
+        self.init(context)
+        context.postinitialize(self)
     }
 
     /// Delicate API.
@@ -546,7 +584,11 @@ func register<T: Object>(type name: StringName, parent: StringName, type: T.Type
         duplicateClassNameDetected(name, type)
     }
 
-    nonisolated func getVirtual(_ userData: UnsafeMutableRawPointer?, _ name: FoundryExtensionConstStringNamePtr?) ->  FoundryExtensionClassCallVirtual? {
+    nonisolated func getVirtual(
+        _ userData: UnsafeMutableRawPointer?,
+        _ name: FoundryExtensionConstStringNamePtr?,
+        _: UInt32
+    ) -> FoundryExtensionClassCallVirtual? {
         let userDataInt = userData.map { Int(bitPattern: $0) }
         let nameInt = name.map { Int(bitPattern: $0) }
         return MainActor.assumeIsolated {
@@ -562,8 +604,8 @@ func register<T: Object>(type name: StringName, parent: StringName, type: T.Type
         }
     }
     
-    var info = FoundryExtensionClassCreationInfo2 ()
-    info.create_instance_func = createFunc(_:)
+    var info = FoundryExtensionClassCreationInfo5 ()
+    info.create_instance_func = createFunc
     info.free_instance_func = freeFunc(_:_:)
     info.get_virtual_func = getVirtual
     info.notification_func = notificationFunc
@@ -1046,9 +1088,12 @@ nonisolated func unreferenceFunc(_ userData: UnsafeMutableRawPointer) {
 ///
 /// This one is invoked by Foundry when an instance of one of our types is created, and we need
 /// to instantiate it.   Notice that this is different that direct instantiation from our API
-nonisolated func createFunc(_ userData: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
+nonisolated func createFunc(
+    _ userData: UnsafeMutableRawPointer?,
+    _ notifyPostinitialize: UInt8
+) -> UnsafeMutableRawPointer? {
     let userDataInt = userData.map { Int(bitPattern: $0) }
-    let handleInt: Int? = MainActor.assumeIsolated {
+    let handleInt: Int? = MainActor.assumeIsolated { () -> Int? in
         //print ("SWIFT: Creating object userData:\(String(describing: userData))")
         guard let userDataInt else {
             print ("FoundrySwift.createFunc: Got a nil userData")
@@ -1066,11 +1111,12 @@ nonisolated func createFunc(_ userData: UnsafeMutableRawPointer?) -> UnsafeMutab
             fatalError("SWIFT: It was not possible to construct a \(type.foundryClassName.description)")
         }
 
+        let context = InitContext(handle: handle, origin: .foundryScript)
         #if FOUNDRYSWIFT_WITH_MULTI_PROCESS
-        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
+        let object = type.init(context)
         object.wrapper?.strongify()
         #else
-        let object = type.init(InitContext(handle: handle, origin: .foundryScript))
+        let object = type.init(context)
 
         // We are the createFunc, and we have no other owner to this object but ourselves
         // we need to make this a strong reference, or it dies before we return
@@ -1080,6 +1126,10 @@ nonisolated func createFunc(_ userData: UnsafeMutableRawPointer?) -> UnsafeMutab
 
         wrapper.strongify()
         #endif
+
+        if notifyPostinitialize != 0 {
+            context.postinitializeIfNeeded(object)
+        }
 
         return Int(bitPattern: handle)
     }
@@ -1498,7 +1548,7 @@ struct CallableWrapper {
         let wrapperPtr = UnsafeMutablePointer<Self>.allocate(capacity: 1)
         wrapperPtr.initialize(to: Self(function: function))
         
-        var cci = FoundryExtensionCallableCustomInfo(
+        var cci = FoundryExtensionCallableCustomInfo2(
             callable_userdata: wrapperPtr,
             token: extensionInterface.getLibrary(),
             object_id: 0,
@@ -1508,7 +1558,8 @@ struct CallableWrapper {
             hash_func: nil,
             equal_func: nil,
             less_than_func: nil,
-            to_string_func: nil)
+            to_string_func: nil,
+            get_argument_count_func: nil)
         var content: Callable.ContentType = Callable.zero
         gi.callable_custom_create(&content, &cci);
         return content
